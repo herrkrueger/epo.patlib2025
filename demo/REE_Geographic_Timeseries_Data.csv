@@ -1,0 +1,14 @@
+country_name,filing_year,avg_family_size,median_family_size,total_records,unique_families,filing_strategy,period,analysis_date
+  ,2010,3.0,3.0,2,2,Regional Strategy,Early (2010-2014),2025-06-16 21:39
+  ,2011,7.0,7.0,2,2,Global Strategy,Early (2010-2014),2025-06-16 21:39
+  ,2012,5.0,1.0,6,5,Regional Strategy,Early (2010-2014),2025-06-16 21:39
+  ,2013,1.0,1.0,4,4,Domestic Focus,Early (2010-2014),2025-06-16 21:39
+  ,2014,1.25,1.0,8,8,Domestic Focus,Early (2010-2014),2025-06-16 21:39
+  ,2015,1.0,1.0,5,5,Domestic Focus,Growth (2015-2018),2025-06-16 21:39
+  ,2016,1.0,1.0,6,6,Domestic Focus,Growth (2015-2018),2025-06-16 21:39
+  ,2017,2.64,1.0,14,13,Regional Strategy,Growth (2015-2018),2025-06-16 21:39
+  ,2018,1.0,1.0,5,5,Domestic Focus,Growth (2015-2018),2025-06-16 21:39
+  ,2019,1.0,1.0,2,2,Domestic Focus,Recent (2019-2022),2025-06-16 21:39
+  ,2020,1.0,1.0,4,4,Domestic Focus,Recent (2019-2022),2025-06-16 21:39
+  ,2021,1.0,1.0,6,6,Domestic Focus,Recent (2019-2022),2025-06-16 21:39
+  ,2022,2.67,1.0,6,5,Regional Strategy,Recent (2019-2022),2025-06-16 21:39
