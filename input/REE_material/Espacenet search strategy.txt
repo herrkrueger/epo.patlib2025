@@ -1,0 +1,1 @@
+(((ctxt=("rare " prox/distance<3 "earth") AND ctxt=("earth" prox/distance<3 "element")) OR ctxt=("rare " prox/distance<3 "metal") OR ctxt=("rare " prox/distance<3 "oxide") OR ctxt=("light " prox/distance<3 "REE") OR ctxt=("heavy " prox/distance<3 "REE")) OR ctxt any "REE" OR ctxt any "lanthan*") AND (ctxt any "recov*" OR ctxt any "recycl*")
