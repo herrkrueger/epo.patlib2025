@@ -39,36 +39,49 @@ Advanced AI assistant specializing in code enhancement, data visualization, and 
 
 ## 📁 Repository Structure
 
-### 📊 **Core Notebooks**
-```
-input/
-├── REE ranking applicants-RP_AK.ipynb          # Original applicant ranking analysis
-├── REE-family_avg_size-RP_AK.ipynb             # Original geographic family size analysis  
-└── REE-classific.co-occurrence-RP_AK.ipynb     # Original technology co-occurrence network
-```
-
-### 🎭 **Enhanced Demo System**
+### 🎯 **Live Demo System** (Ready for EPO PATLIB 2025)
 ```
 demo/
-├── 01_REE_Ranking_Applicants_ENHANCED.ipynb    # Interactive market intelligence dashboard
-├── 02_REE_Family_Size_Geographic_ENHANCED.ipynb # Global strategy intelligence with world map
-├── 03_REE_Technology_Network_ENHANCED.ipynb     # Innovation convergence network analysis
-├── demo_safety_utils.py                         # Comprehensive error handling & fallback data
-├── DEMO_MASTER_GUIDE.md                         # Complete presentation guide
-├── PHASE_4_PRESENTATION_PROMPTS.md              # Natural language demonstration scripts
-└── CLAUDE.md                                    # Quick reference for project context
+├── notebooks/
+│   ├── 01_REE_Ranking_Applicants_ENHANCED.ipynb    # Market intelligence dashboard
+│   ├── 02_REE_Family_Size_Geographic_ENHANCED.ipynb # Geographic strategy analysis  
+│   └── 03_REE_Technology_Network_ENHANCED.ipynb     # Technology convergence networks
+├── outputs/                                          # Generated business intelligence
+│   ├── REE_Executive_Geographic_Briefing.xlsx
+│   ├── REE_Technology_Network_Connections.xlsx
+│   └── visualizations/                              # Interactive charts & maps
+├── utils/
+│   └── demo_safety_utils.py                        # Error handling & fallback data
+├── guides/
+│   ├── DEMO_MASTER_GUIDE.md                        # Complete presentation guide
+│   ├── PHASE_4_PRESENTATION_PROMPTS.md             # Live coding prompts
+│   └── CLAUDE.md                                   # Quick reference context
+└── documentation/                                   # Complete project archive
+    ├── PROJECT_OVERVIEW.md                         # Full project documentation
+    ├── TECHNICAL_WORKFLOW.md                       # Reproducible methodology
+    ├── ERROR_SOLUTIONS.md                          # Troubleshooting guide
+    └── SESSION_ARCHIVE.html                        # Development history
 ```
 
-### 📚 **Documentation Package**
+### 📊 **Source Data & Research Foundation**
 ```
-demo/documentation/
-├── PROJECT_OVERVIEW.md                          # Complete project summary
-├── TECHNICAL_WORKFLOW.md                        # Reproducible development process  
-├── ERROR_SOLUTIONS.md                           # Debug guide with instant solutions
-├── SESSION_MEMORY_UPDATE.md                     # Workflow optimization patterns
-├── COMPLETE_SESSION_ARCHIVE.md                  # Full development session archive
-├── ACTUAL_CONVERSATION_TRANSCRIPT.md            # Collaboration dialogue record
-└── SESSION_ARCHIVE.html                         # Formatted session archive
+input/
+├── Notebooks/                                       # Original PATSTAT analysis
+│   ├── REE ranking applicants-RP_AK.ipynb         # Dr. Riccardo Priore's research
+│   ├── REE-family_avg_size-RP_AK.ipynb            # Geographic family analysis
+│   └── REE-classific.co-occurrence-RP_AK.ipynb    # Technology co-occurrence
+├── REE_material/                                    # Research documentation
+│   ├── 2020-list-of-CRMs.pdf                      # Critical raw materials list
+│   ├── Rare_Earth_Metals_Market.pdf               # Market analysis reports
+│   └── jrc122671_the_role_of_rare_earth_elements_* # JRC technical studies
+└── eMails from Ricardo/                             # Project correspondence
+```
+
+### 🧪 **Development Templates** (Optional for Demo)
+```
+livedemo-template-1/         # Basic template without AI prompts
+livedemo-template-2/         # Template with Claude Code integration
+livedemo-2.1/               # Latest experimental version
 ```
 
 ---
@@ -137,11 +150,30 @@ demo/documentation/
 
 ## 🚀 Usage Instructions
 
-### **For Live Demonstration**
+### **For Live Demonstration (EPO PATLIB 2025)**
+
+#### **Essential Directories**
+- ✅ **`/demo/`** - Complete demo system (REQUIRED)
+- ✅ **`/input/`** - Source data and research foundation (REQUIRED)
+- ❌ **`/livedemo-*`** - Development templates (OPTIONAL - can be archived)
+
+#### **Demo Preparation**
 1. **Setup**: Ensure PATSTAT connection or use built-in fallback data
 2. **Demo Sequence**: Market Leaders → Geographic Intelligence → Technology Network  
 3. **Timing**: 90 seconds per notebook with natural language enhancement prompts
 4. **Recovery**: Use provided contingency scripts for any technical issues
+
+#### **Quick Start Commands**
+```bash
+# Test system readiness
+cd demo/utils && python -c "from demo_safety_utils import DemoSafetyManager; DemoSafetyManager().check_patstat_connection()"
+
+# Open demo notebooks
+jupyter lab demo/notebooks/
+
+# Verify all outputs exist
+ls -la demo/outputs/
+```
 
 ### **For Development & Extension**
 1. **Read Documentation**: Start with `demo/documentation/PROJECT_OVERVIEW.md`
@@ -154,6 +186,47 @@ demo/documentation/
 2. **Customization**: Adapt methodology to different technology domains
 3. **Scaling**: Use safety utilities for production-ready implementations
 4. **Integration**: Leverage demo system as foundation for consulting services
+
+---
+
+## 🧹 Repository Cleanup Recommendations
+
+### **For Live Demo Preparation**
+Based on the current repository structure, here are the cleanup recommendations:
+
+#### **Keep (Essential for Demo)**
+- ✅ **`/demo/`** - Production-ready demo system with all enhancements
+- ✅ **`/input/`** - Source data and original research notebooks
+- ✅ **`README.md`** - Updated project documentation
+
+#### **Archive or Remove (Development Artifacts)**
+- 🗂️ **`/livedemo-template-1/`** - Basic template, can be archived
+- 🗂️ **`/livedemo-template-2/`** - Enhanced template, can be archived  
+- 🗂️ **`/livedemo-2.1/`** - Latest experimental version, can be archived
+- 🗑️ **`/livedemo-2/`** - Already marked for deletion in git
+
+#### **Cleanup Commands**
+```bash
+# Remove already-deleted directory from git
+git add -A && git commit -m "Clean up deleted livedemo-2 directory"
+
+# Optional: Archive development templates
+mkdir -p archive/development-templates
+mv livedemo-template-* archive/development-templates/
+mv livedemo-2.1 archive/development-templates/
+
+# Verify clean structure
+tree -d -L 2
+```
+
+#### **Final Structure for Demo**
+```
+patlib/
+├── demo/           # 🎯 Live demo system
+├── input/          # 📊 Source data  
+├── README.md       # 📖 Documentation
+└── archive/        # 🗂️ Development history (optional)
+```
 
 ---
 
