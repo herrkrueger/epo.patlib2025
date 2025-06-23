@@ -11,14 +11,11 @@
 ### Technical Setup
 - [ ] PATSTAT connection tested
 - [ ] All enhanced notebooks in `/demo/` folder
-- [ ] Safety utilities imported: `from demo_safety_utils import *`
-- [ ] Backup data verified
 - [ ] Export folders created
 
 ### Demo Materials
 - [ ] Enhanced notebooks ready to run
 - [ ] Original notebooks for comparison
-- [ ] Demo safety manager initialized
 - [ ] Key talking points memorized
 
 ## 🚀 Demo Sequence Strategy
@@ -26,9 +23,12 @@
 ### **OPENING (30 seconds)**
 ```python
 # Start with this exact code to test connection and set expectations
-safety_manager = DemoSafetyManager()
-is_connected, message = safety_manager.check_patstat_connection()
-print(f"🎯 EPO PATLIB 2025 Demo: {message}")
+try:
+    from epo.tipdata.patstat import PatstatClient
+    patstat = PatstatClient(env='PROD')
+    print("🎯 EPO PATLIB 2025 Demo: PATSTAT Connected Successfully")
+except Exception as e:
+    print(f"🎯 EPO PATLIB 2025 Demo: PATSTAT connection issue - continuing with demo")
 ```
 
 **Talking Points:**
@@ -71,7 +71,7 @@ print(f"🌍 Geographic Insight: Chinese institutions dominate")
 - "Interactive dashboard ready for board presentations"
 
 ### **Recovery Prompts:**
-- If PATSTAT fails: "Perfect! This shows our fallback capabilities"
+- If PATSTAT fails: "This demonstrates real-world conditions - let's continue with cached data"
 - If visualization issues: "Let me show you the data intelligence instead"
 - If slow query: "This demonstrates real-time PATSTAT processing"
 
@@ -190,10 +190,10 @@ for _, pathway in top_pathways.iterrows():
 ## 🛡️ Error Handling & Contingencies
 
 ### **Technical Contingencies:**
-- **PATSTAT down**: Use demo data, emphasize methodology
+- **PATSTAT down**: Emphasize methodology and show cached results
 - **Visualization fails**: Focus on data insights and business value
 - **Slow performance**: Explain real-time processing benefits
-- **Code errors**: "This is exactly why we need error handling" → show recovery
+- **Code errors**: "This shows real-world conditions" → explain and continue
 
 ### **Audience Contingencies:**
 - **Too technical**: Focus on business outcomes, skip code details
