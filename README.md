@@ -39,9 +39,23 @@ Advanced AI assistant specializing in code enhancement, data visualization, and 
 
 ## 📁 Repository Structure
 
-### 🎯 **Live Demo System** (Ready for EPO PATLIB 2025)
+### 📊 **1-input/** - Source Data & Research Foundation
 ```
-demo/
+1-input/
+├── Notebooks/                                       # Original PATSTAT analysis
+│   ├── REE ranking applicants-RP_AK.ipynb         # Dr. Riccardo Priore's research
+│   ├── REE-family_avg_size-RP_AK.ipynb            # Geographic family analysis
+│   └── REE-classific.co-occurrence-RP_AK.ipynb    # Technology co-occurrence
+├── REE_material/                                    # Research documentation
+│   ├── 2020-list-of-CRMs.pdf                      # Critical raw materials list
+│   ├── Rare_Earth_Metals_Market.pdf               # Market analysis reports
+│   └── jrc122671_the_role_of_rare_earth_elements_* # JRC technical studies
+└── eMails from Ricardo/                             # Project correspondence
+```
+
+### 🎯 **2-enhanced/** - Production Demo System (EPO PATLIB 2025)
+```
+2-enhanced/
 ├── notebooks/
 │   ├── 01_REE_Ranking_Applicants_ENHANCED.ipynb    # Market intelligence dashboard
 │   ├── 02_REE_Family_Size_Geographic_ENHANCED.ipynb # Geographic strategy analysis  
@@ -63,26 +77,30 @@ demo/
     └── SESSION_ARCHIVE.html                        # Development history
 ```
 
-### 📊 **Source Data & Research Foundation**
+### 🧪 **3-livedemo-template/** - Base Template for New Demos
 ```
-input/
-├── Notebooks/                                       # Original PATSTAT analysis
-│   ├── REE ranking applicants-RP_AK.ipynb         # Dr. Riccardo Priore's research
-│   ├── REE-family_avg_size-RP_AK.ipynb            # Geographic family analysis
-│   └── REE-classific.co-occurrence-RP_AK.ipynb    # Technology co-occurrence
-├── REE_material/                                    # Research documentation
-│   ├── 2020-list-of-CRMs.pdf                      # Critical raw materials list
-│   ├── Rare_Earth_Metals_Market.pdf               # Market analysis reports
-│   └── jrc122671_the_role_of_rare_earth_elements_* # JRC technical studies
-└── eMails from Ricardo/                             # Project correspondence
+3-livedemo-template/
+├── base_patent_notebook.ipynb                       # Foundation notebook for enhancement
+├── claude_context.md                               # Demo context and background
+├── claude_code_prompt.md                           # Enhancement instructions for Claude
+└── demo_setup.py                                   # Environment setup script
 ```
 
-### 🗂️ **Archived Development History**
+### 🚀 **4-livedemo/** - Active Development Environment
 ```
-archive/development-templates/
-├── livedemo-template-1/     # Basic template without AI prompts
-├── livedemo-template-2/     # Template with Claude Code integration  
-└── livedemo-2.1/           # Latest experimental version
+4-livedemo/
+├── base_patent_notebook.ipynb                       # Current working notebook
+├── claude_context.md                               # Current demo context
+├── claude_code_prompt.md                           # Current enhancement instructions
+├── demo_setup.py                                   # Setup automation
+└── demo_config.json                                # Configuration settings (NEW)
+```
+
+### 🗂️ **5-archive/** - Version History
+```
+5-archive/
+├── 4-livedemo_20250623_100207/                     # Archived version with timestamp
+└── [other archived versions]                       # Historical iterations
 ```
 
 ---
@@ -153,22 +171,37 @@ archive/development-templates/
 
 ### **For Live Demonstration (EPO PATLIB 2025)**
 
-#### **Demo Preparation**
-1. **Setup**: Ensure PATSTAT connection or use built-in fallback data
-2. **Demo Sequence**: Market Leaders → Geographic Intelligence → Technology Network  
-3. **Timing**: 90 seconds per notebook with natural language enhancement prompts
-4. **Recovery**: Use provided contingency scripts for any technical issues
-
-#### **Quick Start Commands**
+#### **Demo Environment Setup**
 ```bash
-# Test system readiness
-cd demo/utils && python -c "from demo_safety_utils import DemoSafetyManager; DemoSafetyManager().check_patstat_connection()"
+# Navigate to active demo environment
+cd 4-livedemo/
 
-# Open demo notebooks
-jupyter lab demo/notebooks/
+# Run setup automation (installs packages, creates structure)
+python demo_setup.py
 
-# Verify all outputs exist
-ls -la demo/outputs/
+# Review configuration
+cat demo_config.json
+
+# Test enhanced notebooks in production system
+cd ../2-enhanced/utils && python -c "from demo_safety_utils import DemoSafetyManager; DemoSafetyManager().check_patstat_connection()"
+```
+
+#### **Demo Workflow**
+- **Active Development**: Use `4-livedemo/` for live coding enhancements
+- **Production Demos**: Use `2-enhanced/` for polished presentations  
+- **Template Creation**: Copy from `3-livedemo-template/` for new demos
+- **Configuration**: Customize `4-livedemo/demo_config.json` for specific needs
+
+#### **Quick Demo Commands**
+```bash
+# Open active development notebook
+jupyter lab 4-livedemo/base_patent_notebook.ipynb
+
+# Open production demo system
+jupyter lab 2-enhanced/notebooks/
+
+# Verify demo readiness
+ls -la 2-enhanced/outputs/
 ```
 
 ### **For Development & Extension**
@@ -187,40 +220,36 @@ ls -la demo/outputs/
 
 ## ✨ Repository Status: Demo-Ready
 
-### **✅ Cleanup Completed Successfully**
-The repository has been optimized for the EPO PATLIB 2025 live demonstration with all development artifacts properly archived.
+### **✅ Latest Updates Completed Successfully**
+The repository has been reorganized with a numbered workflow structure and enhanced configuration management.
 
-#### **Current Clean Structure**
+#### **New Features Added**
+- ✅ **Automated Archiving**: `4-livedemo/` archived with timestamp to `5-archive/`
+- ✅ **Fresh Template Copy**: Clean `4-livedemo/` created from `3-livedemo-template/`
+- ✅ **Configuration File**: New `demo_config.json` with comprehensive settings
+- ✅ **Numbered Structure**: Clear workflow progression (1→2→3→4→5)
+
+#### **Current Production Structure**
 ```
 patlib/
-├── demo/                    # 🎯 Production-ready demo system
-│   ├── notebooks/           # Enhanced patent analytics notebooks  
-│   ├── outputs/            # Generated business intelligence
-│   ├── guides/             # Presentation guides and prompts
-│   ├── utils/              # Safety utilities and error handling
-│   └── documentation/      # Complete project documentation
-├── input/                   # 📊 Source data and original research
-│   ├── Notebooks/          # Dr. Riccardo Priore's PATSTAT analysis
-│   ├── REE_material/       # Research documentation and reports
-│   └── eMails from Ricardo/ # Project correspondence
-├── archive/                 # 🗂️ Development history (preserved)
-│   └── development-templates/
-│       ├── livedemo-template-1/    # Basic template
-│       ├── livedemo-template-2/    # Enhanced template  
-│       └── livedemo-2.1/           # Latest experimental version
-└── README.md               # 📖 Project documentation
+├── 1-input/                 # 📊 Source data and original research
+├── 2-enhanced/              # 🎯 Production-ready demo system  
+├── 3-livedemo-template/     # 🧪 Base template for new demos
+├── 4-livedemo/              # 🚀 Active development environment
+├── 5-archive/               # 🗂️ Timestamped version history
+└── README.md               # 📖 Updated documentation
 ```
 
 #### **Demo Readiness Verification**
 ```bash
-# Verify structure
+# Verify new structure
 tree -d -L 2
 
-# Test demo system
-cd demo/utils && python -c "from demo_safety_utils import DemoSafetyManager; DemoSafetyManager().check_patstat_connection()"
+# Check configuration
+cat 4-livedemo/demo_config.json | jq '.demo_info'
 
-# Launch demo environment
-jupyter lab demo/notebooks/
+# Test production system
+cd 2-enhanced/utils && python -c "from demo_safety_utils import DemoSafetyManager; DemoSafetyManager().check_patstat_connection()"
 ```
 
 ---
