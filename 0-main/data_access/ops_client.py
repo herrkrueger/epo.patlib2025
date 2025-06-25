@@ -39,7 +39,7 @@ def load_env_file():
                         if line and not line.startswith('#') and '=' in line:
                             key, value = line.split('=', 1)
                             os.environ[key] = value
-                logger.info(f"✅ Loaded environment variables from {env_file}")
+                logger.debug(f"✅ Loaded environment variables from {env_file}")
                 return True
         
         logger.warning("⚠️ No .env file found in expected locations")
@@ -125,7 +125,7 @@ class EPOOPSClient:
             })
             
             self.authenticated = True
-            logger.info("✅ EPO OPS authentication successful")
+            logger.debug("✅ EPO OPS authentication successful")
             
         except Exception as e:
             logger.error(f"❌ EPO OPS authentication failed: {e}")
@@ -137,7 +137,7 @@ class EPOOPSClient:
             return False
             
         if self.token_expires and datetime.now() >= self.token_expires:
-            logger.info("🔄 Refreshing EPO OPS token...")
+            logger.debug("🔄 Refreshing EPO OPS token...")
             self._authenticate()
         
         return self.authenticated
@@ -212,12 +212,12 @@ class EPOOPSClient:
             'Range': f'{range_begin}-{range_end}'
         }
         
-        logger.info(f"🔍 Searching patents: {query[:100]}...")
+        logger.debug(f"🔍 Searching patents: {query[:100]}...")
         result = self._make_request(endpoint, params)
         
         if result:
             total_results = result.get('ops:world-patent-data', {}).get('ops:biblio-search', {}).get('@total-result-count', 0)
-            logger.info(f"📊 Found {total_results} results")
+            logger.debug(f"📊 Found {total_results} results")
         
         return result
     
@@ -240,7 +240,7 @@ class EPOOPSClient:
         sections_str = ','.join(sections)
         endpoint = f"published-data/{reference_type}/{patent_number}/{sections_str}"
         
-        logger.info(f"📄 Fetching patent details: {patent_number}")
+        logger.debug(f"📄 Fetching patent details: {patent_number}")
         return self._make_request(endpoint)
     
     def get_patent_family(self, reference_type: str, patent_number: str) -> Optional[Dict]:
@@ -256,7 +256,7 @@ class EPOOPSClient:
         """
         endpoint = f"published-data/{reference_type}/{patent_number}/family"
         
-        logger.info(f"👪 Fetching patent family: {patent_number}")
+        logger.debug(f"👪 Fetching patent family: {patent_number}")
         return self._make_request(endpoint)
     
     def get_citations(self, reference_type: str, patent_number: str, 
@@ -274,7 +274,7 @@ class EPOOPSClient:
         """
         endpoint = f"published-data/{reference_type}/{patent_number}/citations/{citation_type}"
         
-        logger.info(f"🔗 Fetching citations: {patent_number}")
+        logger.debug(f"🔗 Fetching citations: {patent_number}")
         return self._make_request(endpoint)
     
     def get_batch_citations(self, patent_numbers: List[str], reference_type: str = 'publication',
@@ -297,7 +297,7 @@ class EPOOPSClient:
         
         # Limit the number of patents to process
         patents_to_process = patent_numbers[:max_patents]
-        logger.info(f"🔗 Fetching citations for {len(patents_to_process)} patents...")
+        logger.debug(f"🔗 Fetching citations for {len(patents_to_process)} patents...")
         
         citation_results = {}
         
@@ -314,7 +314,7 @@ class EPOOPSClient:
                 logger.warning(f"⚠️ Failed to get citations for {patent_number}: {e}")
                 citation_results[patent_number] = None
         
-        logger.info(f"✅ Completed batch citation fetch: {len(citation_results)} results")
+        logger.debug(f"✅ Completed batch citation fetch: {len(citation_results)} results")
         return citation_results
     
     def analyze_citation_network(self, patent_numbers: List[str], depth: int = 1) -> Dict[str, any]:
@@ -332,7 +332,7 @@ class EPOOPSClient:
             logger.error("❌ EPO OPS not authenticated for citation network analysis")
             return {}
         
-        logger.info(f"🕸️ Analyzing citation network for {len(patent_numbers)} patents (depth={depth})...")
+        logger.debug(f"🕸️ Analyzing citation network for {len(patent_numbers)} patents (depth={depth})...")
         
         # Get citations for all patents
         citation_data = self.get_batch_citations(patent_numbers)
@@ -346,7 +346,7 @@ class EPOOPSClient:
             'citation_summary': self._summarize_citation_patterns(citation_data)
         }
         
-        logger.info("✅ Citation network analysis completed")
+        logger.debug("✅ Citation network analysis completed")
         return network_analysis
     
     def _calculate_ops_network_metrics(self, citation_data: Dict[str, Optional[Dict]]) -> Dict:
@@ -491,7 +491,7 @@ class PatentValidator:
                 logger.error("No validation keywords found in configuration")
                 raise ValueError("Validation keywords are required but not found in configuration")
                 
-            logger.info(f"✅ Loaded {len(self.validation_keywords)} validation keywords from config")
+            logger.debug(f"✅ Loaded {len(self.validation_keywords)} validation keywords from config")
             
         except Exception as e:
             logger.error(f"❌ Failed to load validation keywords from config: {e}")
@@ -526,7 +526,7 @@ class PatentValidator:
             "validation_summary": {}
         }
         
-        logger.info(f"🔍 Validating {len(sample_patents)} sample patents...")
+        logger.debug(f"🔍 Validating {len(sample_patents)} sample patents...")
         
         for patent_num in sample_patents:
             try:
@@ -559,7 +559,7 @@ class PatentValidator:
                 "validation_success_rate": len(validation_results["validated_patents"]) / len(sample_patents)
             }
         
-        logger.info(f"✅ Validation complete - Average relevance: {validation_results['validation_summary'].get('average_relevance_score', 0):.2f}")
+        logger.debug(f"✅ Validation complete - Average relevance: {validation_results['validation_summary'].get('average_relevance_score', 0):.2f}")
         
         return validation_results
     
@@ -621,7 +621,7 @@ def create_search_queries() -> List[str]:
                     base_queries.append(template_config['template'])
             
             if base_queries:
-                logger.info(f"✅ Loaded {len(base_queries)} query templates from config")
+                logger.debug(f"✅ Loaded {len(base_queries)} query templates from config")
                 return base_queries
         
         logger.error("No query templates found in configuration")
@@ -655,7 +655,7 @@ def correlate_patent_market_data(patent_df: pd.DataFrame,
             if market_events and isinstance(list(market_events.keys())[0], str):
                 market_events = {int(k): v for k, v in market_events.items()}
                 
-            logger.info(f"✅ Loaded {len(market_events)} market events from config")
+            logger.debug(f"✅ Loaded {len(market_events)} market events from config")
             
         except Exception as e:
             logger.warning(f"⚠️ Could not load market events from config: {e}")
@@ -678,6 +678,6 @@ def correlate_patent_market_data(patent_df: pd.DataFrame,
     yearly_counts['market_event'] = yearly_counts['filing_year'].map(market_events)
     yearly_counts['trend_change'] = yearly_counts['patent_count'].pct_change()
     
-    logger.info("📈 Market correlation analysis complete")
+    logger.debug("📈 Market correlation analysis complete")
     
     return patent_df.merge(yearly_counts[['filing_year', 'trend_change']], on='filing_year', how='left')

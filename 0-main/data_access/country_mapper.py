@@ -55,7 +55,7 @@ class PatentCountryMapper:
         try:
             with open(config_path, 'r') as f:
                 self.config = yaml.safe_load(f)
-            logger.info(f"✅ Loaded geographic configuration from {config_path}")
+            logger.debug(f"✅ Loaded geographic configuration from {config_path}")
         except Exception as e:
             logger.error(f"❌ Failed to load geographic config: {e}")
             self.config = self._get_default_config()
@@ -76,7 +76,7 @@ class PatentCountryMapper:
     
     def _build_mapping(self):
         """Build comprehensive country mapping from multiple sources."""
-        logger.info("🗺️ Building comprehensive country mapping...")
+        logger.debug("🗺️ Building comprehensive country mapping...")
         
         # First, try to load from PATSTAT TLS801_COUNTRY table
         if self.patstat_client:
@@ -89,12 +89,12 @@ class PatentCountryMapper:
         # Add strategic regional groupings
         self._add_regional_groupings()
         
-        logger.info(f"✅ Country mapping built with {len(self.country_cache)} countries")
+        logger.debug(f"✅ Country mapping built with {len(self.country_cache)} countries")
     
     def _load_from_patstat(self):
         """Load country data from PATSTAT TLS801_COUNTRY table."""
         try:
-            logger.info("📊 Loading country data from PATSTAT TLS801_COUNTRY...")
+            logger.debug("📊 Loading country data from PATSTAT TLS801_COUNTRY...")
             
             query = self.config.get('patstat_integration', {}).get('query_template', """
                 SELECT 
@@ -112,9 +112,33 @@ class PatentCountryMapper:
             # Execute query using PATSTAT client
             if hasattr(self.patstat_client, 'execute_query'):
                 result = self.patstat_client.execute_query(query)
+            elif hasattr(self.patstat_client, 'db') and hasattr(self.patstat_client.db, 'query'):
+                # Use DB session for query (patstat_client.db is the SQLAlchemy session)
+                session = self.patstat_client.db
+                try:
+                    from epo.tipdata.patstat.database.models import TLS801_COUNTRY
+                    
+                    # Query using ORM
+                    orm_result = session.query(
+                        TLS801_COUNTRY.ctry_code.label('country_code'),
+                        TLS801_COUNTRY.st3_name.label('country_name'),
+                        TLS801_COUNTRY.continent,
+                        TLS801_COUNTRY.eu_member.label('is_eu_member'),
+                        TLS801_COUNTRY.epo_member.label('is_epo_member'),
+                        TLS801_COUNTRY.oecd_member.label('is_oecd_member')
+                    ).filter(
+                        TLS801_COUNTRY.ctry_code.isnot(None)
+                    ).order_by(TLS801_COUNTRY.ctry_code)
+                    
+                    # Convert to DataFrame
+                    result = pd.read_sql(orm_result.statement, session.bind)
+                    
+                except ImportError:
+                    # Fallback to raw SQL if ORM models not available
+                    result = pd.read_sql(query, session.bind)
             else:
-                # Try alternative method
-                result = self.patstat_client.query(query).to_dataframe()
+                # Fallback - no compatible query method found
+                raise AttributeError("PatstatClient doesn't have a compatible query method")
             
             # Process results
             for _, row in result.iterrows():
@@ -130,18 +154,18 @@ class PatentCountryMapper:
                     'regional_groups': []
                 }
             
-            logger.info(f"✅ Loaded {len(self.country_cache)} countries from PATSTAT")
+            logger.debug(f"✅ Loaded {len(self.country_cache)} countries from PATSTAT")
             
         except Exception as e:
             logger.warning(f"⚠️ Failed to load from PATSTAT: {e}")
-            logger.info("📖 Falling back to pycountry mapping...")
+            logger.debug("📖 Falling back to pycountry mapping...")
     
     def _enhance_with_pycountry(self):
         """Enhance mapping with pycountry data for missing countries."""
         if not HAS_PYCOUNTRY:
             return
         
-        logger.info("🌍 Enhancing with pycountry data...")
+        logger.debug("🌍 Enhancing with pycountry data...")
         
         for country in pycountry.countries:
             code = country.alpha_2
@@ -175,11 +199,11 @@ class PatentCountryMapper:
                 'is_oecd_member': False
             }
         
-        logger.info(f"✅ Enhanced mapping with pycountry data")
+        logger.debug(f"✅ Enhanced mapping with pycountry data")
     
     def _add_regional_groupings(self):
         """Add strategic regional groupings for patent analysis."""
-        logger.info("🏛️ Adding strategic regional groupings...")
+        logger.debug("🏛️ Adding strategic regional groupings...")
         
         regional_groups = self.config.get('regional_groups', {})
         
@@ -193,7 +217,7 @@ class PatentCountryMapper:
         # Store group definitions for reference
         self.regional_groups = regional_groups
         
-        logger.info(f"✅ Added {len(regional_groups)} regional groupings")
+        logger.debug(f"✅ Added {len(regional_groups)} regional groupings")
     
     def get_country_info(self, code: str) -> Dict:
         """
@@ -289,7 +313,7 @@ class PatentCountryMapper:
             data.append(row)
         
         df = pd.DataFrame(data).sort_values('country_code')
-        logger.info(f"📊 Created mapping DataFrame with {len(df)} countries and {len(df.columns)} columns")
+        logger.debug(f"📊 Created mapping DataFrame with {len(df)} countries and {len(df.columns)} columns")
         
         return df
     
@@ -305,7 +329,7 @@ class PatentCountryMapper:
         Returns:
             Enhanced DataFrame with geographic information
         """
-        logger.info(f"🔧 Enhancing patent data with geographic information...")
+        logger.debug(f"🔧 Enhancing patent data with geographic information...")
         
         enhanced_data = []
         
@@ -328,7 +352,7 @@ class PatentCountryMapper:
         enhanced_df = pd.DataFrame(enhanced_data)
         result = pd.concat([patent_df, enhanced_df], axis=1)
         
-        logger.info(f"✅ Enhanced {len(result)} patent records with geographic data")
+        logger.debug(f"✅ Enhanced {len(result)} patent records with geographic data")
         return result
     
     def get_regional_summary(self) -> Dict:

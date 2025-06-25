@@ -110,7 +110,7 @@ class TechnologyAnalyzer:
         Returns:
             Enhanced DataFrame with technology intelligence
         """
-        logger.info("🔬 Starting comprehensive technology landscape analysis...")
+        logger.debug("🔬 Starting comprehensive technology landscape analysis...")
         
         df = patent_data.copy()
         
@@ -137,13 +137,13 @@ class TechnologyAnalyzer:
             df = self._analyze_technology_convergence(df, ipc_col, ipc2_col, domain_col)
         
         self.analyzed_data = df
-        logger.info(f"✅ Technology analysis complete for {len(df)} records")
+        logger.debug(f"✅ Technology analysis complete for {len(df)} records")
         
         return df
     
     def _add_ree_technology_taxonomy(self, df: pd.DataFrame, ipc_col: str) -> pd.DataFrame:
         """Add REE-specific technology taxonomy classification."""
-        logger.info("🏷️ Adding REE technology taxonomy...")
+        logger.debug("🏷️ Adding REE technology taxonomy...")
         
         def classify_ree_technology(ipc_code: str) -> Tuple[str, str, str, str]:
             """Classify IPC code into REE technology categories."""
@@ -178,7 +178,7 @@ class TechnologyAnalyzer:
     def _analyze_technology_evolution(self, df: pd.DataFrame, year_col: str, 
                                     ipc_col: str, family_col: str) -> pd.DataFrame:
         """Analyze technology evolution patterns over time."""
-        logger.info("📈 Analyzing technology evolution...")
+        logger.debug("📈 Analyzing technology evolution...")
         
         # Calculate technology lifecycle metrics
         tech_evolution = df.groupby(['ree_technology_area', year_col]).agg({
@@ -255,7 +255,7 @@ class TechnologyAnalyzer:
     def _calculate_innovation_metrics(self, df: pd.DataFrame, ipc_col: str, 
                                     ipc2_col: str, year_col: str) -> pd.DataFrame:
         """Calculate comprehensive innovation metrics."""
-        logger.info("💡 Calculating innovation metrics...")
+        logger.debug("💡 Calculating innovation metrics...")
         
         # Innovation diversity within technology areas
         diversity_metrics = df.groupby('ree_technology_area').agg({
@@ -319,7 +319,7 @@ class TechnologyAnalyzer:
     
     def _identify_emerging_technologies(self, df: pd.DataFrame, year_col: str, ipc_col: str) -> pd.DataFrame:
         """Identify emerging technologies and innovation patterns."""
-        logger.info("🌱 Identifying emerging technologies...")
+        logger.debug("🌱 Identifying emerging technologies...")
         
         current_year = datetime.now().year
         emergence_window = 5  # Look at last 5 years for emergence
@@ -392,7 +392,7 @@ class TechnologyAnalyzer:
     def _analyze_technology_convergence(self, df: pd.DataFrame, ipc_col: str, 
                                       ipc2_col: str, domain_col: str) -> pd.DataFrame:
         """Analyze technology convergence patterns."""
-        logger.info("🔄 Analyzing technology convergence...")
+        logger.debug("🔄 Analyzing technology convergence...")
         
         # Technology convergence matrix
         convergence_patterns = df.groupby([ipc_col, ipc2_col]).agg({
@@ -463,7 +463,7 @@ class TechnologyAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_technology_landscape first.")
         
-        logger.info("🕸️ Building technology network...")
+        logger.debug("🕸️ Building technology network...")
         
         # Filter for technologies with convergence data
         network_data = df[
@@ -510,7 +510,7 @@ class TechnologyAnalyzer:
                 G.nodes[node]['degree_centrality'] = degree_centrality.get(node, 0)
         
         self.technology_network = G
-        logger.info(f"✅ Technology network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+        logger.debug(f"✅ Technology network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
         
         return G
     
@@ -530,7 +530,7 @@ class TechnologyAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_technology_landscape first.")
         
-        logger.info("📋 Generating technology intelligence report...")
+        logger.debug("📋 Generating technology intelligence report...")
         
         # Technology area overview
         tech_overview = df.groupby('ree_technology_area').agg({
@@ -682,7 +682,7 @@ class TechnologyAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_technology_landscape first.")
         
-        logger.info("🔍 Identifying innovation opportunities...")
+        logger.debug("🔍 Identifying innovation opportunities...")
         
         opportunities = {
             'emerging_opportunities': {},
@@ -752,7 +752,7 @@ def create_technology_analyzer() -> TechnologyAnalyzer:
 # Example usage and demo functions
 def demo_technology_analysis():
     """Demonstrate technology analysis capabilities."""
-    logger.info("🚀 Technology Analysis Demo")
+    logger.debug("🚀 Technology Analysis Demo")
     
     # Create sample data
     np.random.seed(42)
@@ -798,9 +798,9 @@ def demo_technology_analysis():
     intelligence = analyzer.generate_technology_intelligence()
     opportunities = analyzer.identify_innovation_opportunities()
     
-    logger.info("✅ Demo analysis complete")
-    logger.info(f"🔬 Dominant technology area: {intelligence['executive_summary']['dominant_area']}")
-    logger.info(f"🕸️ Network nodes: {network.number_of_nodes()}")
+    logger.debug("✅ Demo analysis complete")
+    logger.debug(f"🔬 Dominant technology area: {intelligence['executive_summary']['dominant_area']}")
+    logger.debug(f"🕸️ Network nodes: {network.number_of_nodes()}")
     
     return analyzer, analyzed_df, intelligence
 

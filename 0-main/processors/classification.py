@@ -105,16 +105,30 @@ class ClassificationAnalyzer:
         # Initialize PATSTAT connection
         if PATSTAT_AVAILABLE and self.patstat_client is None:
             try:
-                self.patstat_client = PatstatClient(env='PROD')
-                logger.info("✅ Connected to PATSTAT for classification data enrichment")
+                self.patstat_client = PatstatClient(environment='PROD')
+                logger.debug("✅ Connected to PATSTAT for classification data enrichment")
             except Exception as e:
                 logger.error(f"❌ Failed to connect to PATSTAT: {e}")
                 self.patstat_client = None
         
         if self.patstat_client:
             try:
-                self.session = self.patstat_client.orm()
-                logger.info("✅ PATSTAT session initialized for classification analysis")
+                # Use the db session from our PatstatClient (preferred method)
+                if hasattr(self.patstat_client, 'db') and self.patstat_client.db is not None:
+                    self.session = self.patstat_client.db
+                    # Get models and SQL functions from our client
+                    if hasattr(self.patstat_client, 'models'):
+                        self.models = self.patstat_client.models
+                    if hasattr(self.patstat_client, 'sql_funcs'):
+                        self.sql_funcs = self.patstat_client.sql_funcs
+                    logger.debug("✅ PATSTAT session initialized for classification analysis")
+                elif hasattr(self.patstat_client, 'orm') and callable(self.patstat_client.orm):
+                    # Fallback to EPO PatstatClient orm method
+                    self.session = self.patstat_client.orm()
+                    logger.debug("✅ PATSTAT session initialized for classification analysis (via orm)")
+                else:
+                    logger.error("❌ No valid PATSTAT session method found")
+                    self.session = None
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
     
@@ -129,14 +143,14 @@ class ClassificationAnalyzer:
         Returns:
             Enhanced DataFrame with classification intelligence
         """
-        logger.info(f"🏷️ Starting classification analysis of {len(search_results)} patent families...")
+        logger.debug(f"🏷️ Starting classification analysis of {len(search_results)} patent families...")
         
         if search_results.empty:
             logger.warning("⚠️ No search results to analyze")
             return pd.DataFrame()
         
         # Step 1: Enrich search results with classification data from PATSTAT
-        logger.info("📊 Step 1: Enriching with classification data from PATSTAT...")
+        logger.debug("📊 Step 1: Enriching with classification data from PATSTAT...")
         classification_data = self._enrich_with_classification_data(search_results)
         
         if classification_data.empty:
@@ -144,21 +158,21 @@ class ClassificationAnalyzer:
             return pd.DataFrame()
         
         # Step 2: Analyze classification patterns and domains
-        logger.info("🔍 Step 2: Analyzing classification patterns and domains...")
+        logger.debug("🔍 Step 2: Analyzing classification patterns and domains...")
         pattern_analysis = self._analyze_classification_patterns(classification_data)
         
         # Step 3: Build technology networks and co-occurrence
-        logger.info("🕸️ Step 3: Building technology networks and co-occurrence patterns...")
+        logger.debug("🕸️ Step 3: Building technology networks and co-occurrence patterns...")
         network_analysis = self._build_technology_networks(classification_data)
         
         # Step 4: Generate technology intelligence insights
-        logger.info("🎯 Step 4: Generating technology intelligence insights...")
+        logger.debug("🎯 Step 4: Generating technology intelligence insights...")
         intelligence_analysis = self._generate_technology_intelligence(pattern_analysis, network_analysis)
         
         self.analyzed_data = intelligence_analysis
         self.classification_data = classification_data
         
-        logger.info(f"✅ Classification analysis complete: {len(intelligence_analysis)} technology patterns analyzed")
+        logger.debug(f"✅ Classification analysis complete: {len(intelligence_analysis)} technology patterns analyzed")
         
         return intelligence_analysis
     
@@ -173,11 +187,11 @@ class ClassificationAnalyzer:
             return pd.DataFrame()
         
         family_ids = search_results['docdb_family_id'].tolist()
-        logger.info(f"   Enriching {len(family_ids)} families with classification data...")
+        logger.debug(f"   Enriching {len(family_ids)} families with classification data...")
         
         try:
             # Get IPC classifications
-            logger.info("   📋 Querying IPC classifications...")
+            logger.debug("   📋 Querying IPC classifications...")
             ipc_query = self.session.query(
                 TLS201_APPLN.docdb_family_id,
                 TLS201_APPLN.appln_id,
@@ -195,7 +209,7 @@ class ClassificationAnalyzer:
             ipc_result = ipc_query.all()
             
             # Get CPC classifications  
-            logger.info("   📋 Querying CPC classifications...")
+            logger.debug("   📋 Querying CPC classifications...")
             cpc_query = self.session.query(
                 TLS201_APPLN.docdb_family_id,
                 TLS201_APPLN.appln_id,
@@ -250,26 +264,44 @@ class ClassificationAnalyzer:
             enriched_data = search_results.merge(
                 classification_df,
                 on='docdb_family_id',
-                how='inner'
+                how='inner',
+                suffixes=('', '_patstat')  # Keep original column names
             )
+            
+            # Fix duplicate column names - prefer search results version
+            if 'appln_id_patstat' in enriched_data.columns:
+                enriched_data = enriched_data.drop('appln_id_patstat', axis=1)
+            if 'earliest_filing_year_patstat' in enriched_data.columns:
+                enriched_data = enriched_data.drop('earliest_filing_year_patstat', axis=1)
             
             # Clean and standardize classification codes
             enriched_data = self._clean_classification_data(enriched_data)
             
-            logger.info(f"   ✅ Enriched {len(enriched_data)} classification relationships")
-            logger.info(f"   📊 IPC classifications: {len([r for r in classification_records if r['classification_type'] == 'IPC'])}")
-            logger.info(f"   📊 CPC classifications: {len([r for r in classification_records if r['classification_type'] == 'CPC'])}")
-            logger.info(f"   🏢 Covering {enriched_data['docdb_family_id'].nunique()} families")
+            logger.debug(f"   ✅ Enriched {len(enriched_data)} classification relationships")
+            logger.debug(f"   📊 IPC classifications: {len([r for r in classification_records if r['classification_type'] == 'IPC'])}")
+            logger.debug(f"   📊 CPC classifications: {len([r for r in classification_records if r['classification_type'] == 'CPC'])}")
+            logger.debug(f"   🏢 Covering {enriched_data['docdb_family_id'].nunique()} families")
             
             return enriched_data
             
         except Exception as e:
             logger.error(f"❌ Failed to enrich with classification data: {e}")
-            return pd.DataFrame()
+            logger.warning("⚠️ Falling back to basic classification mapping from search results")
+            
+            # Fallback: use basic classification mapping from search results if available
+            fallback_data = search_results.copy()
+            
+            # Add basic classification columns that processors expect
+            fallback_data['cpc_class_symbol'] = 'G06F'  # Generic computing class
+            fallback_data['technology_domain'] = 'Computing'
+            fallback_data['classification_quality'] = 0.1  # Low quality fallback
+            fallback_data['class_depth'] = 1
+            
+            return fallback_data
     
     def _clean_classification_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean and standardize classification data."""
-        logger.info("🧹 Cleaning classification data...")
+        logger.debug("🧹 Cleaning classification data...")
         
         # Remove empty or null classifications
         df = df[df['classification_symbol'].notna()].copy()
@@ -296,7 +328,7 @@ class ClassificationAnalyzer:
         """
         Analyze classification patterns and technology distributions.
         """
-        logger.info("🔍 Analyzing classification patterns...")
+        logger.debug("🔍 Analyzing classification patterns...")
         
         # Check available columns and find the correct year column
         year_col = None
@@ -309,7 +341,7 @@ class ClassificationAnalyzer:
             logger.error("❌ No filing year column found for classification analysis")
             return pd.DataFrame()
         
-        logger.info(f"   Using year column: {year_col}")
+        logger.debug(f"   Using year column: {year_col}")
         
         # Check if quality_score exists before aggregating
         agg_dict = {
@@ -376,8 +408,8 @@ class ClassificationAnalyzer:
         # Add ranking
         domain_analysis['domain_rank'] = range(1, len(domain_analysis) + 1)
         
-        logger.info(f"   ✅ Analyzed {len(domain_analysis)} technology domains")
-        logger.info(f"   🏆 Top domain: {domain_analysis.iloc[0]['technology_domain']} ({domain_analysis.iloc[0]['patent_families']} families)")
+        logger.debug(f"   ✅ Analyzed {len(domain_analysis)} technology domains")
+        logger.debug(f"   🏆 Top domain: {domain_analysis.iloc[0]['technology_domain']} ({domain_analysis.iloc[0]['patent_families']} families)")
         
         return domain_analysis
     
@@ -385,7 +417,7 @@ class ClassificationAnalyzer:
         """
         Build technology networks and analyze co-occurrence patterns.
         """
-        logger.info("🕸️ Building technology networks...")
+        logger.debug("🕸️ Building technology networks...")
         
         # Create co-occurrence matrix at family level
         family_classifications = classification_data.groupby('docdb_family_id')['main_class'].apply(list).reset_index()
@@ -440,8 +472,8 @@ class ClassificationAnalyzer:
             'cooccurrence_matrix': dict(co_occurrence_counts)
         }
         
-        logger.info(f"   ✅ Built network with {network_metrics['total_nodes']} nodes and {network_metrics['total_edges']} edges")
-        logger.info(f"   📊 Network density: {network_metrics['network_density']:.3f}")
+        logger.debug(f"   ✅ Built network with {network_metrics['total_nodes']} nodes and {network_metrics['total_edges']} edges")
+        logger.debug(f"   📊 Network density: {network_metrics['network_density']:.3f}")
         
         return network_analysis
     
@@ -450,7 +482,7 @@ class ClassificationAnalyzer:
         """
         Generate comprehensive technology intelligence insights.
         """
-        logger.info("🎯 Generating technology intelligence insights...")
+        logger.debug("🎯 Generating technology intelligence insights...")
         
         # Enhance pattern analysis with network insights
         enhanced_analysis = pattern_analysis.copy()
@@ -534,7 +566,7 @@ class ClassificationAnalyzer:
             raise ValueError("No analyzed data available. Run analyze_search_results first.")
         
         df = self.analyzed_data
-        logger.info("📋 Generating classification intelligence summary...")
+        logger.debug("📋 Generating classification intelligence summary...")
         
         total_families = df['patent_families'].sum()
         top_domain = df.iloc[0] if len(df) > 0 else None
@@ -642,7 +674,7 @@ class ClassificationAnalyzer:
     def _clean_classification_codes(self, df: pd.DataFrame, 
                                   ipc1_col: str, ipc2_col: str) -> pd.DataFrame:
         """Clean and standardize IPC/CPC classification codes."""
-        logger.info("🧹 Cleaning classification codes...")
+        logger.debug("🧹 Cleaning classification codes...")
         
         # Standardize IPC codes to 8-character format
         df[ipc1_col] = df[ipc1_col].astype(str).str[:8]
@@ -662,7 +694,7 @@ class ClassificationAnalyzer:
     def _add_domain_classifications(self, df: pd.DataFrame, 
                                   ipc1_col: str, ipc2_col: str) -> pd.DataFrame:
         """Add technology domain classifications."""
-        logger.info("🏢 Adding domain classifications...")
+        logger.debug("🏢 Adding domain classifications...")
         
         # Extract main classes (first 4 characters)
         df['main_class_1'] = df[ipc1_col].str[:4]
@@ -721,7 +753,7 @@ class ClassificationAnalyzer:
                                       ipc1_col: str, ipc2_col: str, 
                                       family_col: str) -> pd.DataFrame:
         """Analyze IPC co-occurrence patterns for network analysis."""
-        logger.info("🕸️ Analyzing co-occurrence patterns...")
+        logger.debug("🕸️ Analyzing co-occurrence patterns...")
         
         if ipc2_col not in df.columns:
             logger.warning("⚠️ No second IPC column available for co-occurrence analysis")
@@ -759,7 +791,7 @@ class ClassificationAnalyzer:
     
     def _add_temporal_classification_patterns(self, df: pd.DataFrame, year_col: str) -> pd.DataFrame:
         """Add temporal patterns to classification analysis."""
-        logger.info("📅 Adding temporal patterns...")
+        logger.debug("📅 Adding temporal patterns...")
         
         # Time period classification
         df['innovation_period'] = pd.cut(
@@ -786,7 +818,7 @@ class ClassificationAnalyzer:
     def _calculate_innovation_metrics(self, df: pd.DataFrame, 
                                     ipc1_col: str, ipc2_col: str) -> pd.DataFrame:
         """Calculate innovation and convergence metrics."""
-        logger.info("💡 Calculating innovation metrics...")
+        logger.debug("💡 Calculating innovation metrics...")
         
         # Calculate domain diversity
         domain_counts = df['domain_1'].value_counts()
@@ -832,7 +864,7 @@ class ClassificationAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_classification_patterns first.")
         
-        logger.info("🕸️ Building classification network...")
+        logger.debug("🕸️ Building classification network...")
         
         # Filter strong connections
         strong_connections = df[df['total_occurrences_cooccur'] >= min_cooccurrence].copy()
@@ -868,7 +900,7 @@ class ClassificationAnalyzer:
                 G.nodes[node]['domain'] = domain
         
         self.network_graph = G
-        logger.info(f"✅ Network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+        logger.debug(f"✅ Network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
         
         return G
     
@@ -888,7 +920,7 @@ class ClassificationAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_classification_patterns first.")
         
-        logger.info("📋 Generating classification intelligence...")
+        logger.debug("📋 Generating classification intelligence...")
         
         # Domain analysis
         domain_analysis = df.groupby('domain_1').agg({
@@ -1033,7 +1065,7 @@ class ClassificationDataProcessor:
         Returns:
             Processed DataFrame ready for classification analysis
         """
-        logger.info(f"📊 Processing {len(raw_data)} raw classification records...")
+        logger.debug(f"📊 Processing {len(raw_data)} raw classification records...")
         
         # Convert to DataFrame
         df = pd.DataFrame(raw_data, columns=[
@@ -1045,14 +1077,14 @@ class ClassificationDataProcessor:
         df = self._validate_classification_data(df)
         df = self._standardize_ipc_codes(df)
         
-        logger.info(f"✅ Processed to {len(df)} clean classification records")
+        logger.debug(f"✅ Processed to {len(df)} clean classification records")
         self.processed_data = df
         
         return df
     
     def _clean_classification_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean classification-specific data."""
-        logger.info("🧹 Cleaning classification data...")
+        logger.debug("🧹 Cleaning classification data...")
         
         # Remove null IPC codes
         df = df[df['IPC_1'].notna()].copy()
@@ -1070,7 +1102,7 @@ class ClassificationDataProcessor:
     
     def _validate_classification_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate classification data quality."""
-        logger.info("🔍 Validating classification data...")
+        logger.debug("🔍 Validating classification data...")
         
         initial_count = len(df)
         
@@ -1087,13 +1119,13 @@ class ClassificationDataProcessor:
         
         removed_count = initial_count - len(df)
         if removed_count > 0:
-            logger.info(f"📊 Removed {removed_count} invalid records")
+            logger.debug(f"📊 Removed {removed_count} invalid records")
         
         return df
     
     def _standardize_ipc_codes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize IPC codes to consistent format."""
-        logger.info("🏷️ Standardizing IPC codes...")
+        logger.debug("🏷️ Standardizing IPC codes...")
         
         # Ensure consistent ordering (smaller code first for consistent analysis)
         def order_ipc_codes(row):

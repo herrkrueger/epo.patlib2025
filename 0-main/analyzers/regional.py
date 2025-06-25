@@ -98,7 +98,7 @@ class RegionalAnalyzer:
         Returns:
             Enhanced DataFrame with regional intelligence
         """
-        logger.info("🌍 Starting comprehensive regional dynamics analysis...")
+        logger.debug("🌍 Starting comprehensive regional dynamics analysis...")
         
         df = patent_data.copy()
         
@@ -124,14 +124,14 @@ class RegionalAnalyzer:
         df = self._calculate_innovation_intensity(df, region_col, year_col, family_col)
         
         self.analyzed_data = df
-        logger.info(f"✅ Regional analysis complete for {len(df)} records")
+        logger.debug(f"✅ Regional analysis complete for {len(df)} records")
         
         return df
     
     def _calculate_regional_metrics(self, df: pd.DataFrame, region_col: str, 
                                   country_col: str, family_col: str, year_col: str) -> pd.DataFrame:
         """Calculate comprehensive regional metrics."""
-        logger.info("📊 Calculating regional metrics...")
+        logger.debug("📊 Calculating regional metrics...")
         
         # Regional summary statistics
         regional_stats = df.groupby(region_col).agg({
@@ -164,7 +164,7 @@ class RegionalAnalyzer:
     
     def _analyze_market_development(self, df: pd.DataFrame, region_col: str, year_col: str) -> pd.DataFrame:
         """Analyze market development stages by region."""
-        logger.info("📈 Analyzing market development stages...")
+        logger.debug("📈 Analyzing market development stages...")
         
         # Calculate market maturity based on activity span
         def assign_market_stage(activity_span: int) -> str:
@@ -203,7 +203,7 @@ class RegionalAnalyzer:
     def _calculate_regional_competitiveness(self, df: pd.DataFrame, region_col: str, 
                                           family_col: str, family_size_col: str) -> pd.DataFrame:
         """Calculate regional competitive positioning."""
-        logger.info("🏆 Calculating regional competitiveness...")
+        logger.debug("🏆 Calculating regional competitiveness...")
         
         # Competitive tier based on market share
         market_share_tiers = {
@@ -253,7 +253,7 @@ class RegionalAnalyzer:
     
     def _add_strategic_insights(self, df: pd.DataFrame, region_col: str, family_size_col: str) -> pd.DataFrame:
         """Add strategic insights and intelligence."""
-        logger.info("💡 Adding strategic insights...")
+        logger.debug("💡 Adding strategic insights...")
         
         # Regional strengths from predefined knowledge
         region_strengths = {region: info['key_strengths'] for region, info in self.REGIONAL_DEFINITIONS.items()}
@@ -311,7 +311,7 @@ class RegionalAnalyzer:
     def _calculate_innovation_intensity(self, df: pd.DataFrame, region_col: str, 
                                       year_col: str, family_col: str) -> pd.DataFrame:
         """Calculate innovation intensity metrics."""
-        logger.info("🔬 Calculating innovation intensity...")
+        logger.debug("🔬 Calculating innovation intensity...")
         
         # Innovation density (patents per year per active country)
         innovation_metrics = df.groupby(region_col).apply(
@@ -368,7 +368,7 @@ class RegionalAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_regional_dynamics first.")
         
-        logger.info("📋 Generating regional intelligence report...")
+        logger.debug("📋 Generating regional intelligence report...")
         
         # Regional overview
         regional_overview = df.groupby('region').agg({
@@ -497,7 +497,7 @@ class RegionalAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_regional_dynamics first.")
         
-        logger.info("📊 Creating competitive matrix...")
+        logger.debug("📊 Creating competitive matrix...")
         
         # Select key metrics for matrix
         matrix_data = df.drop_duplicates('region')[['region', 'market_share_pct_regional', 
@@ -563,7 +563,7 @@ class RegionalAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_regional_dynamics first.")
         
-        logger.info("🔄 Analyzing regional convergence patterns...")
+        logger.debug("🔄 Analyzing regional convergence patterns...")
         
         # Technology convergence between regions (if classification data available)
         convergence_analysis = {
@@ -637,7 +637,7 @@ def create_regional_analyzer() -> RegionalAnalyzer:
 # Example usage and demo functions
 def demo_regional_analysis():
     """Demonstrate regional analysis capabilities."""
-    logger.info("🚀 Regional Analysis Demo")
+    logger.debug("🚀 Regional Analysis Demo")
     
     # Create sample data
     np.random.seed(42)
@@ -678,9 +678,9 @@ def demo_regional_analysis():
     competitive_matrix = analyzer.create_competitive_matrix()
     convergence_analysis = analyzer.analyze_regional_convergence()
     
-    logger.info("✅ Demo analysis complete")
-    logger.info(f"🌍 Market leader: {intelligence_report['executive_summary']['market_leader']}")
-    logger.info(f"📊 Competitive matrix dimensions: {competitive_matrix.shape}")
+    logger.debug("✅ Demo analysis complete")
+    logger.debug(f"🌍 Market leader: {intelligence_report['executive_summary']['market_leader']}")
+    logger.debug(f"📊 Competitive matrix dimensions: {competitive_matrix.shape}")
     
     return analyzer, analyzed_df, intelligence_report
 

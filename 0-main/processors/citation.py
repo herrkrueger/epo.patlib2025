@@ -65,6 +65,8 @@ class CitationAnalyzer:
         """
         self.patstat_client = patstat_client
         self.session = None
+        self.models = {}
+        self.sql_funcs = {}
         self.analyzed_data = None
         self.citation_data = None
         self.citation_network = None
@@ -74,15 +76,43 @@ class CitationAnalyzer:
         if PATSTAT_AVAILABLE and self.patstat_client is None:
             try:
                 self.patstat_client = PatstatClient(env='PROD')
-                logger.info("✅ Connected to PATSTAT for citation data enrichment")
+                logger.debug("✅ Connected to PATSTAT for citation data enrichment")
             except Exception as e:
                 logger.error(f"❌ Failed to connect to PATSTAT: {e}")
                 self.patstat_client = None
         
         if self.patstat_client:
             try:
-                self.session = self.patstat_client.orm()
-                logger.info("✅ PATSTAT session initialized for citation analysis")
+                # Use the db session from our PatstatClient
+                if hasattr(self.patstat_client, 'db') and self.patstat_client.db is not None:
+                    self.session = self.patstat_client.db
+                    # Get models and SQL functions from our client
+                    if hasattr(self.patstat_client, 'models'):
+                        self.models = self.patstat_client.models
+                    if hasattr(self.patstat_client, 'sql_funcs'):
+                        self.sql_funcs = self.patstat_client.sql_funcs
+                    logger.debug("✅ PATSTAT session initialized for citation analysis")
+                elif hasattr(self.patstat_client, 'orm') and callable(self.patstat_client.orm):
+                    # Fallback to EPO PatstatClient orm method
+                    self.session = self.patstat_client.orm()
+                    # Import models directly for fallback
+                    try:
+                        from epo.tipdata.patstat.database.models import (
+                            TLS201_APPLN, TLS228_DOCDB_FAM_CITN, TLS212_CITATION
+                        )
+                        from sqlalchemy import func, and_, or_
+                        self.models = {
+                            'TLS201_APPLN': TLS201_APPLN,
+                            'TLS228_DOCDB_FAM_CITN': TLS228_DOCDB_FAM_CITN,
+                            'TLS212_CITATION': TLS212_CITATION
+                        }
+                        self.sql_funcs = {'func': func, 'and_': and_, 'or_': or_}
+                    except ImportError:
+                        logger.warning("⚠️ Could not import PATSTAT models for fallback")
+                    logger.debug("✅ PATSTAT session initialized for citation analysis (via orm)")
+                else:
+                    logger.error("❌ No valid PATSTAT session method found")
+                    self.session = None
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
         
@@ -97,14 +127,14 @@ class CitationAnalyzer:
         Returns:
             Enhanced DataFrame with citation intelligence
         """
-        logger.info(f"🔗 Starting citation analysis of {len(search_results)} patent families...")
+        logger.debug(f"🔗 Starting citation analysis of {len(search_results)} patent families...")
         
         if search_results.empty:
             logger.warning("⚠️ No search results to analyze")
             return pd.DataFrame()
         
         # Step 1: Enrich search results with citation data from PATSTAT
-        logger.info("📊 Step 1: Enriching with citation data from PATSTAT...")
+        logger.debug("📊 Step 1: Enriching with citation data from PATSTAT...")
         citation_data = self._enrich_with_citation_data(search_results)
         
         if citation_data.empty:
@@ -112,21 +142,21 @@ class CitationAnalyzer:
             return pd.DataFrame()
         
         # Step 2: Analyze citation impact patterns
-        logger.info("🎯 Step 2: Analyzing citation impact patterns...")
+        logger.debug("🎯 Step 2: Analyzing citation impact patterns...")
         impact_analysis = self._analyze_citation_impact(citation_data)
         
         # Step 3: Build citation networks and calculate centrality
-        logger.info("🕸️ Step 3: Building citation networks...")
+        logger.debug("🕸️ Step 3: Building citation networks...")
         network_analysis = self._build_citation_networks(citation_data)
         
         # Step 4: Generate citation intelligence insights
-        logger.info("💡 Step 4: Generating citation intelligence insights...")
+        logger.debug("💡 Step 4: Generating citation intelligence insights...")
         intelligence_analysis = self._generate_citation_intelligence(impact_analysis, network_analysis)
         
         self.analyzed_data = intelligence_analysis
         self.citation_data = citation_data
         
-        logger.info(f"✅ Citation analysis complete: {len(intelligence_analysis)} citation patterns analyzed")
+        logger.debug(f"✅ Citation analysis complete: {len(intelligence_analysis)} citation patterns analyzed")
         
         return intelligence_analysis
     
@@ -141,11 +171,32 @@ class CitationAnalyzer:
             return pd.DataFrame()
         
         family_ids = search_results['docdb_family_id'].tolist()
-        logger.info(f"   Enriching {len(family_ids)} families with citation data...")
+        logger.debug(f"   Enriching {len(family_ids)} families with citation data...")
         
         try:
+            # Get models from the client
+            TLS201_APPLN = self.models.get('TLS201_APPLN')
+            TLS212_CITATION = self.models.get('TLS212_CITATION')
+            TLS228_DOCDB_FAM_CITN = self.models.get('TLS228_DOCDB_FAM_CITN')
+            
+            if not TLS201_APPLN:
+                logger.error("❌ TLS201_APPLN model not available")
+                return pd.DataFrame()
+            
+            # Try family-level citations first (TLS228) as it's more efficient
+            if TLS228_DOCDB_FAM_CITN:
+                logger.debug("   📈 Querying family-level citations (TLS228)...")
+                return self._get_family_level_citations(family_ids, TLS228_DOCDB_FAM_CITN, TLS201_APPLN)
+            
+            # Fallback to application-level citations (TLS212)
+            if not TLS212_CITATION:
+                logger.error("❌ No citation tables available")
+                return pd.DataFrame()
+            
+            logger.debug("   📈 Querying application-level citations (TLS212)...")
+            
             # Get forward citations (where our families are cited)
-            logger.info("   📈 Querying forward citations...")
+            logger.debug("   📈 Querying forward citations...")
             forward_citations_query = self.session.query(
                 TLS201_APPLN.docdb_family_id.label('cited_family_id'),
                 TLS201_APPLN.earliest_filing_year.label('cited_year'),
@@ -175,7 +226,7 @@ class CitationAnalyzer:
                 citing_families_dict = {}
             
             # Get backward citations (where our families cite others)
-            logger.info("   📉 Querying backward citations...")
+            logger.debug("   📉 Querying backward citations...")
             backward_citations_query = self.session.query(
                 TLS201_APPLN.docdb_family_id.label('citing_family_id'),
                 TLS201_APPLN.earliest_filing_year.label('citing_year'),
@@ -274,10 +325,10 @@ class CitationAnalyzer:
             # Clean citation data
             enriched_data = self._clean_citation_data_patstat(enriched_data)
             
-            logger.info(f"   ✅ Enriched {len(enriched_data)} citation relationships")
-            logger.info(f"   📈 Forward citations: {len([r for r in citation_records if r['citation_direction'] == 'forward'])}")
-            logger.info(f"   📉 Backward citations: {len([r for r in citation_records if r['citation_direction'] == 'backward'])}")
-            logger.info(f"   🏢 Covering {enriched_data['docdb_family_id'].nunique()} families")
+            logger.debug(f"   ✅ Enriched {len(enriched_data)} citation relationships")
+            logger.debug(f"   📈 Forward citations: {len([r for r in citation_records if r['citation_direction'] == 'forward'])}")
+            logger.debug(f"   📉 Backward citations: {len([r for r in citation_records if r['citation_direction'] == 'backward'])}")
+            logger.debug(f"   🏢 Covering {enriched_data['docdb_family_id'].nunique()} families")
             
             return enriched_data
             
@@ -285,9 +336,119 @@ class CitationAnalyzer:
             logger.error(f"❌ Failed to enrich with citation data: {e}")
             return pd.DataFrame()
     
+    def _get_family_level_citations(self, family_ids: List[int], TLS228_DOCDB_FAM_CITN, TLS201_APPLN) -> pd.DataFrame:
+        """Get citations using family-level citation table (TLS228)."""
+        try:
+            # Get forward citations (families that cite our families)
+            forward_query = self.session.query(
+                TLS228_DOCDB_FAM_CITN.cited_docdb_family_id.label('cited_family_id'),
+                TLS228_DOCDB_FAM_CITN.docdb_family_id.label('citing_family_id')
+            ).filter(
+                TLS228_DOCDB_FAM_CITN.cited_docdb_family_id.in_(family_ids)
+            )
+            
+            forward_results = forward_query.all()
+            
+            # Get backward citations (families that our families cite)
+            backward_query = self.session.query(
+                TLS228_DOCDB_FAM_CITN.docdb_family_id.label('citing_family_id'),
+                TLS228_DOCDB_FAM_CITN.cited_docdb_family_id.label('cited_family_id')
+            ).filter(
+                TLS228_DOCDB_FAM_CITN.docdb_family_id.in_(family_ids)
+            )
+            
+            backward_results = backward_query.all()
+            
+            # Combine results
+            citation_records = []
+            
+            # Process forward citations
+            for result in forward_results:
+                citation_records.append({
+                    'cited_family_id': result.cited_family_id,
+                    'citing_family_id': result.citing_family_id,
+                    'citation_direction': 'forward',
+                    'citation_authority': 'X',  # Default for family-level
+                    'citation_category': 'family_level'
+                })
+            
+            # Process backward citations
+            for result in backward_results:
+                citation_records.append({
+                    'cited_family_id': result.cited_family_id,
+                    'citing_family_id': result.citing_family_id,
+                    'citation_direction': 'backward',
+                    'citation_authority': 'X',  # Default for family-level
+                    'citation_category': 'family_level'
+                })
+            
+            if not citation_records:
+                logger.warning("⚠️ No family-level citations found")
+                return pd.DataFrame()
+            
+            citation_df = pd.DataFrame(citation_records)
+            
+            # Add filing year metadata
+            all_family_ids = list(set(citation_df['cited_family_id'].tolist() + citation_df['citing_family_id'].tolist()))
+            
+            if all_family_ids:
+                year_query = self.session.query(
+                    TLS201_APPLN.docdb_family_id,
+                    TLS201_APPLN.earliest_filing_year
+                ).filter(
+                    TLS201_APPLN.docdb_family_id.in_(all_family_ids)
+                ).distinct()
+                
+                year_results = year_query.all()
+                year_dict = {r.docdb_family_id: r.earliest_filing_year for r in year_results}
+                
+                citation_df['cited_year'] = citation_df['cited_family_id'].map(year_dict)
+                citation_df['citing_year'] = citation_df['citing_family_id'].map(year_dict)
+            
+            # Create enriched search results
+            search_results_base = pd.DataFrame({
+                'docdb_family_id': family_ids,
+                'quality_score': [3.0] * len(family_ids),
+                'match_type': ['family_citation'] * len(family_ids),
+                'earliest_filing_year': [year_dict.get(fid, 2018) for fid in family_ids]
+            })
+            
+            # Merge with citation data
+            enriched_data = search_results_base.merge(
+                citation_df,
+                left_on='docdb_family_id',
+                right_on='cited_family_id',
+                how='inner'
+            )
+            
+            # Also add backward citations
+            backward_enriched = search_results_base.merge(
+                citation_df[citation_df['citation_direction'] == 'backward'],
+                left_on='docdb_family_id',
+                right_on='citing_family_id',
+                how='inner'
+            )
+            
+            if not backward_enriched.empty:
+                enriched_data = pd.concat([enriched_data, backward_enriched], ignore_index=True)
+            
+            # Clean the data
+            if not enriched_data.empty:
+                enriched_data = self._clean_citation_data_patstat(enriched_data)
+            
+            logger.debug(f"   ✅ Family-level citations: {len(enriched_data)} relationships")
+            logger.debug(f"   📈 Forward citations: {len([r for r in citation_records if r['citation_direction'] == 'forward'])}")
+            logger.debug(f"   📉 Backward citations: {len([r for r in citation_records if r['citation_direction'] == 'backward'])}")
+            
+            return enriched_data
+            
+        except Exception as e:
+            logger.error(f"❌ Family-level citation query failed: {e}")
+            return pd.DataFrame()
+    
     def _clean_citation_data_patstat(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean citation data from PATSTAT."""
-        logger.info("🧹 Cleaning PATSTAT citation data...")
+        logger.debug("🧹 Cleaning PATSTAT citation data...")
         
         # Remove self-citations (same family citing itself)
         df = df[df['cited_family_id'] != df['citing_family_id']].copy()
@@ -324,7 +485,7 @@ class CitationAnalyzer:
         """
         Analyze citation impact patterns and metrics.
         """
-        logger.info("🎯 Analyzing citation impact patterns...")
+        logger.debug("🎯 Analyzing citation impact patterns...")
         
         # Check available year columns
         year_col = None
@@ -337,7 +498,7 @@ class CitationAnalyzer:
             logger.error("❌ No filing year column found for citation analysis")
             return pd.DataFrame()
         
-        logger.info(f"   Using year column: {year_col}")
+        logger.debug(f"   Using year column: {year_col}")
         
         # Aggregate citation metrics by family
         agg_dict = {
@@ -404,8 +565,8 @@ class CitationAnalyzer:
         impact_analysis = impact_analysis.sort_values('total_citations', ascending=False).reset_index(drop=True)
         impact_analysis['citation_rank'] = range(1, len(impact_analysis) + 1)
         
-        logger.info(f"   ✅ Analyzed citation impact for {len(impact_analysis)} families")
-        logger.info(f"   🏆 Top cited family: {impact_analysis.iloc[0]['docdb_family_id']} ({impact_analysis.iloc[0]['total_citations']} citations)")
+        logger.debug(f"   ✅ Analyzed citation impact for {len(impact_analysis)} families")
+        logger.debug(f"   🏆 Top cited family: {impact_analysis.iloc[0]['docdb_family_id']} ({impact_analysis.iloc[0]['total_citations']} citations)")
         
         return impact_analysis
     
@@ -413,7 +574,7 @@ class CitationAnalyzer:
         """
         Build citation networks and calculate network metrics.
         """
-        logger.info("🕸️ Building citation networks...")
+        logger.debug("🕸️ Building citation networks...")
         
         # Build directed citation network
         G = nx.DiGraph()
@@ -472,8 +633,8 @@ class CitationAnalyzer:
             'centrality_metrics': centrality_metrics
         }
         
-        logger.info(f"   ✅ Built citation network with {network_metrics['total_nodes']} nodes and {network_metrics['total_edges']} edges")
-        logger.info(f"   📊 Network density: {network_metrics['network_density']:.3f}")
+        logger.debug(f"   ✅ Built citation network with {network_metrics['total_nodes']} nodes and {network_metrics['total_edges']} edges")
+        logger.debug(f"   📊 Network density: {network_metrics['network_density']:.3f}")
         
         return network_analysis
     
@@ -481,7 +642,7 @@ class CitationAnalyzer:
         """
         Generate comprehensive citation intelligence insights.
         """
-        logger.info("💡 Generating citation intelligence insights...")
+        logger.debug("💡 Generating citation intelligence insights...")
         
         # Enhance impact analysis with network insights
         enhanced_analysis = impact_analysis.copy()
@@ -564,7 +725,7 @@ class CitationAnalyzer:
     def _clean_citation_data(self, df: pd.DataFrame, 
                            citing_family_col: str, cited_family_col: str) -> pd.DataFrame:
         """Clean and validate citation data."""
-        logger.info("🧹 Cleaning citation data...")
+        logger.debug("🧹 Cleaning citation data...")
         
         initial_count = len(df)
         
@@ -589,14 +750,14 @@ class CitationAnalyzer:
         cleaned_count = len(df)
         removed_count = initial_count - cleaned_count
         if removed_count > 0:
-            logger.info(f"📊 Removed {removed_count} invalid citation records")
+            logger.debug(f"📊 Removed {removed_count} invalid citation records")
         
         return df
     
     def _analyze_temporal_citation_patterns(self, df: pd.DataFrame,
                                           citing_year_col: str, cited_year_col: str) -> pd.DataFrame:
         """Analyze temporal patterns in citation behavior."""
-        logger.info("📅 Analyzing temporal citation patterns...")
+        logger.debug("📅 Analyzing temporal citation patterns...")
         
         # Calculate citation lag (time between cited and citing patents)
         df['citation_lag_years'] = df[citing_year_col] - df[cited_year_col]
@@ -624,7 +785,7 @@ class CitationAnalyzer:
     
     def _assess_citation_quality(self, df: pd.DataFrame, citation_type_col: str) -> pd.DataFrame:
         """Assess citation quality based on type and context."""
-        logger.info("🎯 Assessing citation quality...")
+        logger.debug("🎯 Assessing citation quality...")
         
         # Standardize citation types
         citation_type_mapping = {
@@ -659,7 +820,7 @@ class CitationAnalyzer:
     def _calculate_citation_impact_metrics(self, df: pd.DataFrame,
                                          citing_family_col: str, cited_family_col: str) -> pd.DataFrame:
         """Calculate comprehensive citation impact metrics."""
-        logger.info("📊 Calculating citation impact metrics...")
+        logger.debug("📊 Calculating citation impact metrics...")
         
         # Forward citations (how often each patent is cited)
         forward_citations = df.groupby(cited_family_col).agg({
@@ -718,7 +879,7 @@ class CitationAnalyzer:
     def _calculate_network_position_metrics(self, df: pd.DataFrame,
                                           citing_family_col: str, cited_family_col: str) -> pd.DataFrame:
         """Calculate network position and centrality metrics."""
-        logger.info("🕸️ Calculating network position metrics...")
+        logger.debug("🕸️ Calculating network position metrics...")
         
         # Build citation network
         G = nx.DiGraph()
@@ -793,7 +954,7 @@ class CitationAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_citation_patterns first.")
         
-        logger.info("🕸️ Building citation network...")
+        logger.debug("🕸️ Building citation network...")
         
         # Filter by minimum citations
         citation_counts = df['cited_family_id'].value_counts()
@@ -823,7 +984,7 @@ class CitationAnalyzer:
             G.nodes[node]['total_degree'] = G.degree(node)
         
         self.citation_network = G
-        logger.info(f"✅ Citation network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+        logger.debug(f"✅ Citation network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
         
         return G
     
@@ -838,7 +999,7 @@ class CitationAnalyzer:
             raise ValueError("No analyzed data available. Run analyze_search_results first.")
         
         df = self.analyzed_data
-        logger.info("📋 Generating citation intelligence summary...")
+        logger.debug("📋 Generating citation intelligence summary...")
         
         total_families = len(df)
         top_cited = df.iloc[0] if len(df) > 0 else None
@@ -962,7 +1123,7 @@ class CitationAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_citation_patterns first.")
         
-        logger.info("📋 Generating citation intelligence...")
+        logger.debug("📋 Generating citation intelligence...")
         
         # Overall citation statistics
         total_citations = len(df)
@@ -1112,7 +1273,7 @@ class CitationDataProcessor:
         Returns:
             Processed DataFrame ready for citation analysis
         """
-        logger.info(f"📊 Processing {len(raw_data)} raw citation records...")
+        logger.debug(f"📊 Processing {len(raw_data)} raw citation records...")
         
         # Convert to DataFrame
         df = pd.DataFrame(raw_data, columns=[
@@ -1124,14 +1285,14 @@ class CitationDataProcessor:
         df = self._validate_citation_data(df)
         df = self._standardize_citation_data(df)
         
-        logger.info(f"✅ Processed to {len(df)} clean citation records")
+        logger.debug(f"✅ Processed to {len(df)} clean citation records")
         self.processed_data = df
         
         return df
     
     def _clean_citation_relationships(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean citation relationship data."""
-        logger.info("🧹 Cleaning citation relationships...")
+        logger.debug("🧹 Cleaning citation relationships...")
         
         # Remove null values
         df = df.dropna().copy()
@@ -1149,7 +1310,7 @@ class CitationDataProcessor:
     
     def _validate_citation_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate citation data quality."""
-        logger.info("🔍 Validating citation data...")
+        logger.debug("🔍 Validating citation data...")
         
         initial_count = len(df)
         
@@ -1169,13 +1330,13 @@ class CitationDataProcessor:
         
         removed_count = initial_count - len(df)
         if removed_count > 0:
-            logger.info(f"📊 Removed {removed_count} invalid citation records")
+            logger.debug(f"📊 Removed {removed_count} invalid citation records")
         
         return df
     
     def _standardize_citation_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize citation data format."""
-        logger.info("🏷️ Standardizing citation data...")
+        logger.debug("🏷️ Standardizing citation data...")
         
         # Ensure integer family IDs
         df['citing_family_id'] = df['citing_family_id'].astype(int)

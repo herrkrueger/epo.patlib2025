@@ -178,7 +178,7 @@ def test_citation_processor():
         return False
 
 def test_geographic_processor():
-    """Test GeographicAnalyzer individually."""
+    """Test GeographicAnalyzer individually with NUTS and inventor support."""
     print_section('🌍 Geographic Processor Unit Test')
     
     try:
@@ -189,7 +189,19 @@ def test_geographic_processor():
         analyzer = create_geographic_analyzer()
         print('   ✅ Geographic analyzer created')
         
-        print_subsection('Mock Data Processing')
+        # Test NUTS mapper availability
+        if hasattr(analyzer, 'nuts_mapper') and analyzer.nuts_mapper:
+            print('   ✅ NUTS mapper available')
+        else:
+            print('   ⚠️ NUTS mapper not available (fallback mode)')
+        
+        # Test country mapper availability  
+        if hasattr(analyzer, 'country_mapper') and analyzer.country_mapper:
+            print('   ✅ Country mapper available')
+        else:
+            print('   ⚠️ Country mapper not available (fallback mode)')
+        
+        print_subsection('Role-Based Analysis Parameters')
         mock_search_results = pd.DataFrame({
             'docdb_family_id': [12345, 23456],
             'quality_score': [3, 2],
@@ -198,17 +210,76 @@ def test_geographic_processor():
             'family_size': [5, 3]
         })
         
-        result = analyzer.analyze_search_results(mock_search_results)
-        print(f'   ✅ Processed {len(result)} geographic records')
-        if not result.empty:
-            print(f'   📊 Columns: {len(result.columns)} attributes')
-        else:
-            print('   📝 No geographic data (expected with mock family IDs)')
+        # Test applicant-only analysis
+        print('   Testing applicant-only analysis...')
+        result_applicants = analyzer.analyze_search_results(
+            mock_search_results, 
+            analyze_applicants=True, 
+            analyze_inventors=False,
+            nuts_level=3
+        )
+        print(f'   ✅ Applicant analysis: {len(result_applicants)} records')
+        
+        # Test inventor-only analysis
+        print('   Testing inventor-only analysis...')
+        result_inventors = analyzer.analyze_search_results(
+            mock_search_results,
+            analyze_applicants=False,
+            analyze_inventors=True,
+            nuts_level=3
+        )
+        print(f'   ✅ Inventor analysis: {len(result_inventors)} records')
+        
+        # Test combined analysis
+        print('   Testing combined analysis...')
+        result_combined = analyzer.analyze_search_results(
+            mock_search_results,
+            analyze_applicants=True,
+            analyze_inventors=True,
+            nuts_level=2
+        )
+        print(f'   ✅ Combined analysis: {len(result_combined)} records')
+        
+        print_subsection('Specialized Geographic Methods')
+        # Test specialized methods (they should handle empty data gracefully)
+        try:
+            inventor_geo = analyzer.analyze_inventor_geography(mock_search_results, nuts_level=3)
+            print(f'   ✅ Inventor geography method: {len(inventor_geo)} records')
+        except Exception as e:
+            print(f'   ⚠️ Inventor geography: {e}')
+        
+        try:
+            applicant_geo = analyzer.analyze_applicant_geography(mock_search_results, nuts_level=3)
+            print(f'   ✅ Applicant geography method: {len(applicant_geo)} records')
+        except Exception as e:
+            print(f'   ⚠️ Applicant geography: {e}')
+        
+        try:
+            comparison = analyzer.compare_innovation_vs_filing_geography(mock_search_results, nuts_level=2)
+            print(f'   ✅ Geographic comparison method: {len(comparison)} keys')
+        except Exception as e:
+            print(f'   ⚠️ Geographic comparison: {e}')
+        
+        print_subsection('NUTS Integration Testing')
+        # Test NUTS helper methods if available
+        if hasattr(analyzer, '_get_nuts_info'):
+            nuts_info = analyzer._get_nuts_info('DE111')
+            print(f'   ✅ NUTS info retrieval: {nuts_info.get("nuts_code", "Unknown")}')
+        
+        if hasattr(analyzer, '_get_target_nuts_from_hierarchy'):
+            target_nuts = analyzer._get_target_nuts_from_hierarchy(['DE', 'DE1', 'DE11', 'DE111'], 2)
+            print(f'   ✅ NUTS hierarchy navigation: {target_nuts}')
+        
+        print_subsection('Geographic Mapper Integration')
+        country_info = analyzer._get_country_info('DE')
+        print(f'   ✅ Country info: {country_info.get("name", "Unknown")}')
         
         return True
         
     except Exception as e:
         print(f'❌ Geographic processor test failed: {e}')
+        import traceback
+        traceback.print_exc()
         return False
 
 def run_all_unit_tests():

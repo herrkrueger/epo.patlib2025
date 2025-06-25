@@ -46,7 +46,7 @@ class PatentDataCache:
         for cache_subdir in [self.patstat_cache_dir, self.ops_cache_dir, self.analysis_cache_dir]:
             cache_subdir.mkdir(exist_ok=True)
         
-        logger.info(f"✅ Cache manager initialized: {self.cache_dir}")
+        logger.debug(f"✅ Cache manager initialized: {self.cache_dir}")
     
     def _generate_cache_key(self, data: Union[str, Dict, List]) -> str:
         """
@@ -123,7 +123,7 @@ class PatentDataCache:
                 with open(cache_path, 'rb') as f:
                     cached_data = pickle.load(f)
                 
-                logger.info(f"📦 Cache hit: {cache_type}/{cache_key[:8]}...")
+                logger.debug(f"📦 Cache hit: {cache_type}/{cache_key[:8]}...")
                 return cached_data
                 
             except Exception as e:
@@ -131,7 +131,7 @@ class PatentDataCache:
                 # Remove corrupted cache file
                 cache_path.unlink(missing_ok=True)
         
-        logger.info(f"📭 Cache miss: {cache_type}/{cache_key[:8]}...")
+        logger.debug(f"📭 Cache miss: {cache_type}/{cache_key[:8]}...")
         return None
     
     def set(self, cache_type: str, cache_key_data: Union[str, Dict, List], 
@@ -162,7 +162,7 @@ class PatentDataCache:
             with open(cache_path, 'wb') as f:
                 pickle.dump(cache_entry, f)
             
-            logger.info(f"💾 Cached: {cache_type}/{cache_key[:8]}...")
+            logger.debug(f"💾 Cached: {cache_type}/{cache_key[:8]}...")
             return True
             
         except Exception as e:
@@ -185,7 +185,7 @@ class PatentDataCache:
         
         if cache_path.exists():
             cache_path.unlink()
-            logger.info(f"🗑️ Invalidated cache: {cache_type}/{cache_key[:8]}...")
+            logger.debug(f"🗑️ Invalidated cache: {cache_type}/{cache_key[:8]}...")
             return True
         
         return False
@@ -216,7 +216,7 @@ class PatentDataCache:
                 cache_file.unlink()
                 cleared_count += 1
         
-        logger.info(f"🧹 Cleared {cleared_count} cache entries")
+        logger.debug(f"🧹 Cleared {cleared_count} cache entries")
     
     def get_cache_stats(self) -> Dict[str, Any]:
         """

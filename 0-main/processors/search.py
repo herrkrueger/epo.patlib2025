@@ -59,7 +59,7 @@ class PatentSearchProcessor:
         if PATSTAT_AVAILABLE and self.patstat_client is None:
             try:
                 self.patstat_client = PatstatClient(env='PROD')  # Proven working environment
-                logger.info("✅ Connected to PATSTAT PROD environment")
+                logger.debug("✅ Connected to PATSTAT PROD environment")
             except Exception as e:
                 logger.error(f"❌ Failed to connect to PATSTAT: {e}")
                 self.patstat_client = None
@@ -67,7 +67,7 @@ class PatentSearchProcessor:
         if self.patstat_client:
             try:
                 self.session = self.patstat_client.orm()
-                logger.info("✅ PATSTAT session initialized")
+                logger.debug("✅ PATSTAT session initialized")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
     
@@ -81,7 +81,7 @@ class PatentSearchProcessor:
         try:
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
-            logger.info(f"✅ Loaded search configuration from {config_path}")
+            logger.debug(f"✅ Loaded search configuration from {config_path}")
             return config
         except Exception as e:
             logger.error(f"❌ Failed to load configuration: {e}")
@@ -130,7 +130,7 @@ class PatentSearchProcessor:
         Returns:
             DataFrame with patent families and quality scores
         """
-        logger.info("🔍 Starting patent family search...")
+        logger.debug("🔍 Starting patent family search...")
         
         if not self.session:
             logger.error("❌ No PATSTAT session available")
@@ -148,11 +148,11 @@ class PatentSearchProcessor:
         if technology_areas is None:
             technology_areas = list(self.config['cpc_classifications']['technology_areas'].keys())
         
-        logger.info(f"📊 Search parameters:")
-        logger.info(f"   Keywords: {len(keywords)} terms")
-        logger.info(f"   Technology areas: {technology_areas}")
-        logger.info(f"   Date range: {date_range[0]} to {date_range[1]}")
-        logger.info(f"   Quality mode: {quality_mode}")
+        logger.debug(f"📊 Search parameters:")
+        logger.debug(f"   Keywords: {len(keywords)} terms")
+        logger.debug(f"   Technology areas: {technology_areas}")
+        logger.debug(f"   Date range: {date_range[0]} to {date_range[1]}")
+        logger.debug(f"   Quality mode: {quality_mode}")
         
         # Execute searches based on quality mode
         results = []
@@ -177,7 +177,7 @@ class PatentSearchProcessor:
         # Apply result limits
         if max_results and len(combined_results) > max_results:
             combined_results = combined_results.head(max_results)
-            logger.info(f"📊 Limited results to {max_results} families")
+            logger.debug(f"📊 Limited results to {max_results} families")
         
         # Store results for potential enhancement
         self.search_results = {
@@ -190,7 +190,7 @@ class PatentSearchProcessor:
             }
         }
         
-        logger.info(f"✅ Search completed: {len(combined_results)} patent families found")
+        logger.debug(f"✅ Search completed: {len(combined_results)} patent families found")
         
         return combined_results
     
@@ -211,7 +211,7 @@ class PatentSearchProcessor:
         
         Implements the proven pattern from the EPO PATLIB 2025 demo code.
         """
-        logger.info(f"🔍 Searching by keywords: {len(keywords)} terms")
+        logger.debug(f"🔍 Searching by keywords: {len(keywords)} terms")
         
         # Build keyword search conditions (case-insensitive)
         keyword_conditions = []
@@ -255,7 +255,7 @@ class PatentSearchProcessor:
                 keyword_families['search_method'] = 'keyword'
                 keyword_families['match_score'] = 2  # Keyword match
                 
-                logger.info(f"✅ Found {len(keyword_families)} families using keyword matching")
+                logger.debug(f"✅ Found {len(keyword_families)} families using keyword matching")
                 return keyword_families
             else:
                 logger.warning("⚠️ No keyword matches found")
@@ -271,7 +271,7 @@ class PatentSearchProcessor:
         
         Implements the proven pattern from the EPO PATLIB 2025 demo code.
         """
-        logger.info(f"🔍 Searching by technology areas: {technology_areas}")
+        logger.debug(f"🔍 Searching by technology areas: {technology_areas}")
         
         # Get all CPC codes for the specified technology areas
         all_cpc_codes = []
@@ -286,7 +286,7 @@ class PatentSearchProcessor:
             logger.warning("⚠️ No CPC codes found for specified technology areas")
             return pd.DataFrame()
         
-        logger.info(f"   Using {len(all_cpc_codes)} CPC codes")
+        logger.debug(f"   Using {len(all_cpc_codes)} CPC codes")
         
         try:
             # CPC-based search using the proven pattern with exact format matching
@@ -331,7 +331,7 @@ class PatentSearchProcessor:
                 
                 ipc_result = ipc_query.all()
                 ipc_families = set([row[0] for row in ipc_result])
-                logger.info(f"   Found {len(ipc_families)} families using IPC codes")
+                logger.debug(f"   Found {len(ipc_families)} families using IPC codes")
             
             # Combine CPC and IPC results
             if cpc_result:
@@ -344,8 +344,8 @@ class PatentSearchProcessor:
                 cpc_families_df['search_method'] = 'classification'
                 cpc_families_df['match_score'] = 1  # Classification match
                 
-                logger.info(f"✅ Found {len(cpc_families_df)} families using CPC codes")
-                logger.info(f"   {cpc_families_df['has_ipc_match'].sum()} also have IPC matches")
+                logger.debug(f"✅ Found {len(cpc_families_df)} families using CPC codes")
+                logger.debug(f"   {cpc_families_df['has_ipc_match'].sum()} also have IPC matches")
                 
                 return cpc_families_df
             else:
@@ -362,7 +362,7 @@ class PatentSearchProcessor:
         
         Implements the intersection approach proven in the EPO PATLIB 2025 demo.
         """
-        logger.info(f"🎯 Combining search results using {quality_mode} mode...")
+        logger.debug(f"🎯 Combining search results using {quality_mode} mode...")
         
         if not results:
             return pd.DataFrame()
@@ -396,11 +396,11 @@ class PatentSearchProcessor:
             keyword_only_ids = keyword_ids - classification_ids
             classification_only_ids = classification_ids - keyword_ids
             
-            logger.info(f"   Keyword families: {len(keyword_ids):,}")
-            logger.info(f"   Classification families: {len(classification_ids):,}")
-            logger.info(f"   HIGH-QUALITY intersection: {len(intersection_ids):,}")
-            logger.info(f"   Keyword-only: {len(keyword_only_ids):,}")
-            logger.info(f"   Classification-only: {len(classification_only_ids):,}")
+            logger.debug(f"   Keyword families: {len(keyword_ids):,}")
+            logger.debug(f"   Classification families: {len(classification_ids):,}")
+            logger.debug(f"   HIGH-QUALITY intersection: {len(intersection_ids):,}")
+            logger.debug(f"   Keyword-only: {len(keyword_only_ids):,}")
+            logger.debug(f"   Classification-only: {len(classification_only_ids):,}")
             
             # Create combined dataset based on quality mode
             if quality_mode == 'intersection':
@@ -494,7 +494,7 @@ class PatentSearchProcessor:
                 'high_quality_families': len(combined_df[combined_df['quality_score'] >= 3])
             }
             
-            logger.info(f"✅ Combined {len(combined_df)} families with quality scores")
+            logger.debug(f"✅ Combined {len(combined_df)} families with quality scores")
             return combined_df
         
         return pd.DataFrame()
@@ -572,7 +572,7 @@ class PatentSearchProcessor:
         families = self.search_results['families']
         families.to_csv(filename, index=False)
         
-        logger.info(f"✅ Exported {len(families)} search results to {filename}")
+        logger.debug(f"✅ Exported {len(families)} search results to {filename}")
         return filename
 
 

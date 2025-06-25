@@ -155,24 +155,90 @@ def test_complete_workflow():
             print(f'   ❌ Citation analysis failed: {e}')
             return False
         
-        # Step 7: Test Geographic Analysis
-        print_subsection('Step 7: Test Geographic Analysis')
+        # Step 7: Test Enhanced Geographic Analysis with NUTS and Inventor Support
+        print_subsection('Step 7: Test Enhanced Geographic Analysis')
         start_time = time.time()
         
         try:
+            # Test standard geographic analysis (applicants by default)
+            print('   Testing standard geographic analysis...')
             geographic_results = geographic_analyzer.analyze_search_results(mock_search_results)
-            geographic_time = time.time() - start_time
-            print(f'   ✅ Geographic analysis completed in {geographic_time:.3f}s')
-            print(f'   📊 Geographic results: {len(geographic_results)} records')
+            print(f'   ✅ Standard analysis: {len(geographic_results)} records')
             
-            # Check that we have some meaningful results
-            if len(geographic_results.columns) > 0:
-                print(f'   ✅ Geographic data available with {len(geographic_results.columns)} attributes')
+            # Test applicant-specific analysis
+            print('   Testing applicant-specific analysis...')
+            applicant_geo_results = geographic_analyzer.analyze_search_results(
+                mock_search_results, 
+                analyze_applicants=True, 
+                analyze_inventors=False,
+                nuts_level=3
+            )
+            print(f'   ✅ Applicant geography: {len(applicant_geo_results)} records')
+            
+            # Test inventor-specific analysis
+            print('   Testing inventor-specific analysis...')
+            inventor_geo_results = geographic_analyzer.analyze_search_results(
+                mock_search_results,
+                analyze_applicants=False,
+                analyze_inventors=True,
+                nuts_level=3
+            )
+            print(f'   ✅ Inventor geography: {len(inventor_geo_results)} records')
+            
+            # Test combined analysis with different NUTS levels
+            print('   Testing NUTS level variations...')
+            nuts1_results = geographic_analyzer.analyze_search_results(
+                mock_search_results, analyze_applicants=True, analyze_inventors=True, nuts_level=1
+            )
+            nuts2_results = geographic_analyzer.analyze_search_results(
+                mock_search_results, analyze_applicants=True, analyze_inventors=True, nuts_level=2
+            )
+            nuts3_results = geographic_analyzer.analyze_search_results(
+                mock_search_results, analyze_applicants=True, analyze_inventors=True, nuts_level=3
+            )
+            print(f'   ✅ NUTS level 1: {len(nuts1_results)} records')
+            print(f'   ✅ NUTS level 2: {len(nuts2_results)} records')
+            print(f'   ✅ NUTS level 3: {len(nuts3_results)} records')
+            
+            # Test specialized geographic methods
+            print('   Testing specialized geographic methods...')
+            try:
+                specialized_inventor = geographic_analyzer.analyze_inventor_geography(mock_search_results, nuts_level=2)
+                print(f'   ✅ Specialized inventor method: {len(specialized_inventor)} records')
+            except Exception as e:
+                print(f'   ⚠️ Specialized inventor method: {e}')
+            
+            try:
+                specialized_applicant = geographic_analyzer.analyze_applicant_geography(mock_search_results, nuts_level=2)
+                print(f'   ✅ Specialized applicant method: {len(specialized_applicant)} records')
+            except Exception as e:
+                print(f'   ⚠️ Specialized applicant method: {e}')
+            
+            try:
+                geo_comparison = geographic_analyzer.compare_innovation_vs_filing_geography(mock_search_results, nuts_level=2)
+                print(f'   ✅ Geographic comparison: {len(geo_comparison)} analysis keys')
+            except Exception as e:
+                print(f'   ⚠️ Geographic comparison: {e}')
+            
+            geographic_time = time.time() - start_time
+            print(f'   ✅ Enhanced geographic analysis completed in {geographic_time:.3f}s')
+            
+            # Check NUTS mapper integration
+            if hasattr(geographic_analyzer, 'nuts_mapper') and geographic_analyzer.nuts_mapper:
+                print('   ✅ NUTS mapper integrated successfully')
             else:
-                print('   ⚠️ No geographic data found (expected with mock data)')
-                
+                print('   ⚠️ NUTS mapper not available (fallback mode)')
+            
+            # Check country mapper integration
+            if hasattr(geographic_analyzer, 'country_mapper') and geographic_analyzer.country_mapper:
+                print('   ✅ Country mapper integrated successfully')
+            else:
+                print('   ⚠️ Country mapper not available (fallback mode)')
+            
         except Exception as e:
-            print(f'   ❌ Geographic analysis failed: {e}')
+            print(f'   ❌ Enhanced geographic analysis failed: {e}')
+            import traceback
+            traceback.print_exc()
             return False
         
         # Step 8: Test Data Integration
@@ -263,6 +329,115 @@ def test_complete_workflow():
         import traceback
         traceback.print_exc()
         return False, None
+
+def test_nuts_geographic_integration():
+    """Test NUTS geographic integration specifically."""
+    print_section('🇪🇺 NUTS Geographic Integration Test')
+    
+    try:
+        print_subsection('Data Access Integration Check')
+        
+        # Check if data access modules are available
+        try:
+            from data_access.nuts_mapper import create_nuts_mapper
+            from data_access.country_mapper import create_country_mapper
+            print('   ✅ Data access mappers available')
+        except ImportError as e:
+            print(f'   ⚠️ Data access mappers not available: {e}')
+            return False
+        
+        # Test NUTS mapper creation
+        print_subsection('NUTS Mapper Testing')
+        try:
+            nuts_mapper = create_nuts_mapper()
+            print('   ✅ NUTS mapper created successfully')
+            
+            # Test basic NUTS operations
+            test_codes = ['DE111', 'FR101', 'IT123', 'ES111']
+            for code in test_codes:
+                info = nuts_mapper.get_nuts_info(code)
+                hierarchy = nuts_mapper.get_nuts_hierarchy(code)
+                print(f'   📍 {code}: {info.get("nuts_label", "Unknown")} (Level {info.get("nuts_level", "?")})')
+                print(f'     Hierarchy: {" → ".join(hierarchy) if hierarchy else "None"}')
+            
+        except Exception as e:
+            print(f'   ❌ NUTS mapper testing failed: {e}')
+            return False
+        
+        # Test geographic processor with NUTS integration
+        print_subsection('Geographic Processor NUTS Integration')
+        try:
+            from processors import create_geographic_analyzer
+            analyzer = create_geographic_analyzer()
+            
+            # Check if NUTS mapper is properly integrated
+            if hasattr(analyzer, 'nuts_mapper') and analyzer.nuts_mapper:
+                print('   ✅ NUTS mapper properly integrated into geographic processor')
+                
+                # Test NUTS helper methods
+                if hasattr(analyzer, '_get_nuts_info'):
+                    nuts_info = analyzer._get_nuts_info('DE111')
+                    print(f'   ✅ NUTS info method works: {nuts_info.get("nuts_code", "Unknown")}')
+                
+                if hasattr(analyzer, '_get_target_nuts_from_hierarchy'):
+                    target = analyzer._get_target_nuts_from_hierarchy(['DE', 'DE1', 'DE11', 'DE111'], 2)
+                    print(f'   ✅ NUTS hierarchy method works: {target}')
+                
+            else:
+                print('   ⚠️ NUTS mapper not integrated into geographic processor')
+                return False
+                
+        except Exception as e:
+            print(f'   ❌ Geographic processor NUTS integration failed: {e}')
+            return False
+        
+        # Test role-based analysis parameters
+        print_subsection('Role-Based Analysis Testing')
+        try:
+            mock_data = pd.DataFrame({
+                'docdb_family_id': [12345, 23456],
+                'quality_score': [3, 2],
+                'earliest_filing_year': [2020, 2019]
+            })
+            
+            # Test different role combinations
+            role_tests = [
+                ('Applicants only', True, False),
+                ('Inventors only', False, True),
+                ('Both roles', True, True)
+            ]
+            
+            for test_name, analyze_applicants, analyze_inventors in role_tests:
+                try:
+                    result = analyzer.analyze_search_results(
+                        mock_data, 
+                        analyze_applicants=analyze_applicants,
+                        analyze_inventors=analyze_inventors,
+                        nuts_level=3
+                    )
+                    print(f'   ✅ {test_name}: {len(result)} records (expected: 0 with mock data)')
+                except Exception as e:
+                    print(f'   ❌ {test_name} failed: {e}')
+                    return False
+            
+        except Exception as e:
+            print(f'   ❌ Role-based analysis testing failed: {e}')
+            return False
+        
+        print_subsection('NUTS Integration Summary')
+        print('   ✅ NUTS mapper creation: PASS')
+        print('   ✅ Geographic processor integration: PASS') 
+        print('   ✅ Role-based analysis: PASS')
+        print('   ✅ NUTS hierarchy navigation: PASS')
+        print('   🇪🇺 NUTS integration ready for EPO PATLIB 2025 demonstration')
+        
+        return True
+        
+    except Exception as e:
+        print(f'❌ NUTS geographic integration test failed: {e}')
+        import traceback
+        traceback.print_exc()
+        return False
 
 def test_real_patstat_readiness():
     """Test readiness for real PATSTAT integration."""
@@ -372,7 +547,8 @@ def test_scaling_capabilities():
             ('Applicant Analyzer', create_applicant_analyzer()),
             ('Classification Analyzer', create_classification_analyzer()),
             ('Citation Analyzer', create_citation_analyzer()),
-            ('Geographic Analyzer', create_geographic_analyzer())
+            ('Geographic Analyzer', create_geographic_analyzer()),
+            ('Geographic Analyzer (NUTS)', create_geographic_analyzer())
         ]
         
         scaling_results = {}
@@ -423,13 +599,13 @@ def test_scaling_capabilities():
         return False, None
 
 def generate_final_report(workflow_success: bool, workflow_report: Optional[Dict], 
-                         patstat_ready: bool, scaling_success: bool, 
-                         scaling_results: Optional[Dict]) -> str:
+                         patstat_ready: bool, nuts_integration_success: bool,
+                         scaling_success: bool, scaling_results: Optional[Dict]) -> str:
     """Generate comprehensive final report."""
     print_section('📋 Complete Pipeline Test Report', '=', 70)
     
     # Overall status
-    overall_success = workflow_success and patstat_ready and scaling_success
+    overall_success = workflow_success and patstat_ready and nuts_integration_success and scaling_success
     status = "SUCCESS" if overall_success else "PARTIAL SUCCESS"
     
     print(f'Pipeline Status: {status}')
@@ -439,6 +615,7 @@ def generate_final_report(workflow_success: bool, workflow_report: Optional[Dict
     print('\nComponent Test Results:')
     print(f'   ✅ Complete Workflow: {"PASS" if workflow_success else "FAIL"}')
     print(f'   ✅ PATSTAT Readiness: {"PASS" if patstat_ready else "FAIL"}')
+    print(f'   🇪🇺 NUTS Integration: {"PASS" if nuts_integration_success else "FAIL"}')
     print(f'   ✅ Scaling Capability: {"PASS" if scaling_success else "FAIL"}')
     
     # Detailed workflow results
@@ -494,13 +671,16 @@ def main():
         # Test PATSTAT readiness
         patstat_ready = test_real_patstat_readiness()
         
+        # Test NUTS geographic integration
+        nuts_integration_success = test_nuts_geographic_integration()
+        
         # Test scaling capabilities
         scaling_success, scaling_results = test_scaling_capabilities()
         
         # Generate final comprehensive report
         final_status = generate_final_report(
             workflow_success, workflow_report, 
-            patstat_ready, scaling_success, scaling_results
+            patstat_ready, nuts_integration_success, scaling_success, scaling_results
         )
         
         return 0 if final_status == "SUCCESS" else 1

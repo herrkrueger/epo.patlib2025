@@ -82,16 +82,30 @@ class ApplicantAnalyzer:
         # Initialize PATSTAT connection
         if PATSTAT_AVAILABLE and self.patstat_client is None:
             try:
-                self.patstat_client = PatstatClient(env='PROD')
-                logger.info("✅ Connected to PATSTAT for applicant data enrichment")
+                self.patstat_client = PatstatClient(environment='PROD')
+                logger.debug("✅ Connected to PATSTAT for applicant data enrichment")
             except Exception as e:
                 logger.error(f"❌ Failed to connect to PATSTAT: {e}")
                 self.patstat_client = None
         
         if self.patstat_client:
             try:
-                self.session = self.patstat_client.orm()
-                logger.info("✅ PATSTAT session initialized for applicant analysis")
+                # Use the db session from our PatstatClient (preferred method)
+                if hasattr(self.patstat_client, 'db') and self.patstat_client.db is not None:
+                    self.session = self.patstat_client.db
+                    # Get models and SQL functions from our client
+                    if hasattr(self.patstat_client, 'models'):
+                        self.models = self.patstat_client.models
+                    if hasattr(self.patstat_client, 'sql_funcs'):
+                        self.sql_funcs = self.patstat_client.sql_funcs
+                    logger.debug("✅ PATSTAT session initialized for applicant analysis")
+                elif hasattr(self.patstat_client, 'orm') and callable(self.patstat_client.orm):
+                    # Fallback to EPO PatstatClient orm method
+                    self.session = self.patstat_client.orm()
+                    logger.debug("✅ PATSTAT session initialized for applicant analysis (via orm)")
+                else:
+                    logger.error("❌ No valid PATSTAT session method found")
+                    self.session = None
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
         
@@ -106,7 +120,7 @@ class ApplicantAnalyzer:
         Returns:
             Enhanced DataFrame with applicant intelligence
         """
-        logger.info(f"👥 Starting applicant analysis of {len(search_results)} patent families...")
+        logger.debug(f"👥 Starting applicant analysis of {len(search_results)} patent families...")
         
         if search_results.empty:
             logger.warning("⚠️ Empty search results provided")
@@ -125,13 +139,13 @@ class ApplicantAnalyzer:
         final_data = self._add_strategic_insights(enhanced_data)
         
         self.analyzed_data = final_data
-        logger.info(f"✅ Applicant analysis completed: {len(final_data)} applicants analyzed")
+        logger.debug(f"✅ Applicant analysis completed: {len(final_data)} applicants analyzed")
         
         return final_data
     
     def _enrich_with_applicant_data(self, search_results: pd.DataFrame) -> pd.DataFrame:
         """Enrich search results with applicant data from PATSTAT."""
-        logger.info("🔍 Enriching with applicant data from PATSTAT...")
+        logger.debug("🔍 Enriching with applicant data from PATSTAT...")
         
         if not self.session:
             logger.warning("⚠️ No PATSTAT session available, using mock data")
@@ -166,7 +180,7 @@ class ApplicantAnalyzer:
                 logger.warning("⚠️ No applicant data found in PATSTAT, using mock data")
                 return self._create_mock_applicant_data(search_results)
             
-            logger.info(f"✅ Retrieved applicant data for {len(applicant_df)} records")
+            logger.debug(f"✅ Retrieved applicant data for {len(applicant_df)} records")
             
             # Merge with search results
             enriched_data = search_results.merge(
@@ -183,7 +197,7 @@ class ApplicantAnalyzer:
     
     def _create_mock_applicant_data(self, search_results: pd.DataFrame) -> pd.DataFrame:
         """Create mock applicant data for testing when PATSTAT is not available."""
-        logger.info("📝 Creating mock applicant data for testing...")
+        logger.debug("📝 Creating mock applicant data for testing...")
         
         # Mock applicant names based on technology patterns
         mock_applicants = [
@@ -212,7 +226,7 @@ class ApplicantAnalyzer:
     
     def _aggregate_by_applicant(self, applicant_data: pd.DataFrame) -> pd.DataFrame:
         """Aggregate data by applicant to calculate metrics."""
-        logger.info("📊 Aggregating data by applicant...")
+        logger.debug("📊 Aggregating data by applicant...")
         
         if applicant_data.empty:
             return pd.DataFrame()
@@ -281,7 +295,7 @@ class ApplicantAnalyzer:
     
     def _calculate_market_intelligence(self, aggregated_data: pd.DataFrame) -> pd.DataFrame:
         """Calculate market intelligence metrics."""
-        logger.info("🧠 Calculating market intelligence...")
+        logger.debug("🧠 Calculating market intelligence...")
         
         if aggregated_data.empty:
             return pd.DataFrame()
@@ -317,7 +331,7 @@ class ApplicantAnalyzer:
     
     def _add_geographic_intelligence(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add geographic intelligence based on applicant names and country codes."""
-        logger.info("🌍 Adding geographic intelligence...")
+        logger.debug("🌍 Adding geographic intelligence...")
         
         def identify_country_from_name(applicant_name: str, country_code: str) -> str:
             """Identify likely country based on applicant name patterns."""
@@ -345,7 +359,7 @@ class ApplicantAnalyzer:
     
     def _classify_organization_types(self, df: pd.DataFrame) -> pd.DataFrame:
         """Classify organization types based on name patterns."""
-        logger.info("🏢 Classifying organization types...")
+        logger.debug("🏢 Classifying organization types...")
         
         def classify_org_type(applicant_name: str) -> str:
             """Classify organization type based on name patterns."""
@@ -366,7 +380,7 @@ class ApplicantAnalyzer:
     
     def _add_strategic_insights(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add strategic insights and scoring."""
-        logger.info("⚡ Adding strategic insights...")
+        logger.debug("⚡ Adding strategic insights...")
         
         if df.empty:
             return df
@@ -464,7 +478,7 @@ class ApplicantAnalyzer:
             top_by_strategic = self.analyzed_data.nlargest(20, 'strategic_score')
             top_by_strategic.to_excel(writer, sheet_name='Top_Strategic', index=False)
         
-        logger.info(f"✅ Applicant analysis exported to {filename}")
+        logger.debug(f"✅ Applicant analysis exported to {filename}")
         return filename
 
 def create_applicant_analyzer(patstat_client: Optional[object] = None) -> ApplicantAnalyzer:

@@ -77,7 +77,7 @@ class TrendsAnalyzer:
         Returns:
             Enhanced DataFrame with trend intelligence
         """
-        logger.info("📈 Starting comprehensive temporal trends analysis...")
+        logger.debug("📈 Starting comprehensive temporal trends analysis...")
         
         df = patent_data.copy()
         
@@ -106,13 +106,13 @@ class TrendsAnalyzer:
         self._generate_trend_forecasts(df, year_col, family_col, tech_col)
         
         self.analyzed_data = df
-        logger.info(f"✅ Trends analysis complete for {len(df)} records")
+        logger.debug(f"✅ Trends analysis complete for {len(df)} records")
         
         return df
     
     def _calculate_temporal_metrics(self, df: pd.DataFrame, year_col: str, family_col: str) -> pd.DataFrame:
         """Calculate basic temporal metrics."""
-        logger.info("📊 Calculating temporal metrics...")
+        logger.debug("📊 Calculating temporal metrics...")
         
         # Annual activity summary
         annual_activity = df.groupby(year_col).agg({
@@ -155,7 +155,7 @@ class TrendsAnalyzer:
     def _analyze_filing_patterns(self, df: pd.DataFrame, year_col: str, 
                                family_col: str, tech_col: str) -> pd.DataFrame:
         """Analyze filing patterns and seasonality."""
-        logger.info("🔍 Analyzing filing patterns...")
+        logger.debug("🔍 Analyzing filing patterns...")
         
         # Technology-specific temporal patterns
         if tech_col in df.columns:
@@ -204,7 +204,7 @@ class TrendsAnalyzer:
     
     def _add_market_event_correlation(self, df: pd.DataFrame, year_col: str) -> pd.DataFrame:
         """Add market event correlation analysis."""
-        logger.info("📰 Adding market event correlation...")
+        logger.debug("📰 Adding market event correlation...")
         
         # Map market events to years
         df['market_event'] = df[year_col].map(self.MARKET_EVENTS)
@@ -255,7 +255,7 @@ class TrendsAnalyzer:
     def _calculate_trend_indicators(self, df: pd.DataFrame, year_col: str, 
                                   family_col: str, tech_col: str, region_col: str) -> pd.DataFrame:
         """Calculate comprehensive trend indicators."""
-        logger.info("📊 Calculating trend indicators...")
+        logger.debug("📊 Calculating trend indicators...")
         
         # Technology maturity indicators
         if tech_col in df.columns:
@@ -326,7 +326,7 @@ class TrendsAnalyzer:
     
     def _analyze_cyclical_patterns(self, df: pd.DataFrame, year_col: str, family_col: str) -> pd.DataFrame:
         """Analyze cyclical and seasonal patterns."""
-        logger.info("🔄 Analyzing cyclical patterns...")
+        logger.debug("🔄 Analyzing cyclical patterns...")
         
         # Multi-year cycles analysis
         annual_data = df.groupby(year_col)[family_col].nunique().reset_index()
@@ -373,7 +373,7 @@ class TrendsAnalyzer:
     def _generate_trend_forecasts(self, df: pd.DataFrame, year_col: str, 
                                 family_col: str, tech_col: str):
         """Generate trend forecasts using statistical models."""
-        logger.info("🔮 Generating trend forecasts...")
+        logger.debug("🔮 Generating trend forecasts...")
         
         current_year = datetime.now().year
         forecast_years = 3  # Forecast 3 years ahead
@@ -458,7 +458,7 @@ class TrendsAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_temporal_trends first.")
         
-        logger.info("📋 Generating trends intelligence report...")
+        logger.debug("📋 Generating trends intelligence report...")
         
         current_year = datetime.now().year
         
@@ -649,7 +649,7 @@ class TrendsAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_temporal_trends first.")
         
-        logger.info("🌊 Analyzing innovation cycles...")
+        logger.debug("🌊 Analyzing innovation cycles...")
         
         cycles_analysis = {
             'technology_waves': {},
@@ -719,7 +719,7 @@ def create_trends_analyzer() -> TrendsAnalyzer:
 # Example usage and demo functions
 def demo_trends_analysis():
     """Demonstrate trends analysis capabilities."""
-    logger.info("🚀 Trends Analysis Demo")
+    logger.debug("🚀 Trends Analysis Demo")
     
     # Create sample data with temporal patterns
     np.random.seed(42)
@@ -758,9 +758,9 @@ def demo_trends_analysis():
     trends_report = analyzer.generate_trends_intelligence_report()
     cycles_analysis = analyzer.analyze_innovation_cycles()
     
-    logger.info("✅ Demo analysis complete")
-    logger.info(f"📈 Market momentum: {trends_report['executive_summary']['market_momentum']}")
-    logger.info(f"🔮 Forecasting insights available: {bool(trends_report['forecasting_insights'])}")
+    logger.debug("✅ Demo analysis complete")
+    logger.debug(f"📈 Market momentum: {trends_report['executive_summary']['market_momentum']}")
+    logger.debug(f"🔮 Forecasting insights available: {bool(trends_report['forecasting_insights'])}")
     
     return analyzer, analyzed_df, trends_report
 

@@ -103,7 +103,66 @@ network_analysis = ops_client.analyze_citation_network(patent_numbers)
 - **Citations**: Forward/backward citations with quality categories
 - **Batch Operations**: Multi-patent processing with rate limiting
 
-### 3. Cache Manager (`data_access/cache_manager.py`)
+### 3. NUTS Geographic Mapper (`data_access/nuts_mapper.py`)
+
+**NUTSMapper** - Comprehensive EU hierarchical geographic mapping for patent analysis:
+
+#### Features
+- **PATSTAT Integration**: Real-time data from TLS904_NUTS and TLS206_PERSON tables
+- **Hierarchy Navigation**: 5-level EU structure (0=Country → 3=Districts, plus 4=OECD enhanced)
+- **Code Validation**: Format checking and existence verification
+- **Geographic Aggregation**: Patent data grouping by NUTS levels
+- **Missing Data Handling**: Level 9 identification for unassigned addresses
+- **Data Lag Resilience**: Fallback to local CSV when PATSTAT data unavailable
+
+#### Key Classes
+- **NUTSMapper**: Core hierarchical geographic mapping with PATSTAT integration
+- **Factory Functions**: `create_nuts_mapper()` for easy instantiation
+
+#### Usage Examples
+
+```python
+from data_access import create_nuts_mapper
+
+# Basic setup with PATSTAT integration
+mapper = create_nuts_mapper(patstat_client)
+
+# Hierarchy navigation
+hierarchy = mapper.get_nuts_hierarchy('DE111')  # ['DE', 'DE1', 'DE11', 'DE111']
+
+# Region information
+info = mapper.get_nuts_info('DE111')
+print(f"{info['nuts_label']} (Level {info['nuts_level']})")
+
+# Country extraction
+country = mapper.nuts_to_country('DE111')  # 'DE'
+
+# Code validation
+is_valid = mapper.validate_nuts_code('DE111')  # True
+
+# Get regions by level
+regions_l2 = mapper.get_country_regions('DE', nuts_level=2)
+
+# Enhance patent data
+enhanced_data = mapper.enhance_patent_data(patent_df, nuts_col='nuts_code')
+
+# Aggregate by NUTS level
+aggregated = mapper.aggregate_by_nuts_level(patent_df, target_level=2)
+```
+
+#### NUTS Level Structure
+- **Level 0**: Country (DE)
+- **Level 1**: Major regions (DE1 = Baden-Württemberg)
+- **Level 2**: Basic regions (DE11 = Stuttgart region)
+- **Level 3**: Small regions (DE111 = Stuttgart district)
+- **Level 4**: OECD enhanced data
+- **Level 9**: No NUTS code assigned
+
+#### PATSTAT Tables Supported
+- **TLS904_NUTS**: Reference table with codes, levels, and labels
+- **TLS206_PERSON**: Applicant addresses with NUTS assignments
+
+### 4. Cache Manager (`data_access/cache_manager.py`)
 
 **PatentDataCache** - Intelligent caching system for performance optimization:
 
@@ -223,7 +282,7 @@ search_strategies:
 # Test configuration system (6/7 tests passing)
 ./test_config.sh
 
-# Test data access layer (8/8 tests passing)
+# Test data access layer (9/9 tests passing)
 ./test_data_access.sh
 
 # Individual component testing
@@ -240,7 +299,8 @@ python -c "from data_access.test_data_access import test_patstat_connection; tes
 5. ✅ **Cache Functionality**: Storage, retrieval, and statistics
 6. ✅ **Market Correlation**: Patent trend analysis with market events
 7. ✅ **Citation Analysis**: Forward/backward citation data access
-8. ✅ **Setup Functions**: Quick initialization utilities
+8. ✅ **NUTS Geographic Mapping**: Hierarchical EU geographic analysis
+9. ✅ **Setup Functions**: Quick initialization utilities
 
 ## 🚀 Quick Start
 
@@ -376,4 +436,4 @@ cache_manager = pipeline['cache_manager']
 
 ---
 
-**Status**: ✅ Production Ready | **Test Coverage**: 100% (8/8 tests passing) | **Environment**: PATSTAT PROD + EPO OPS
+**Status**: ✅ Production Ready | **Test Coverage**: 100% (9/9 tests passing) | **Environment**: PATSTAT PROD + EPO OPS

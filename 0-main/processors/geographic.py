@@ -19,19 +19,20 @@ try:
     from epo.tipdata.patstat.database.models import (
         TLS201_APPLN, TLS207_PERS_APPLN, TLS206_PERSON, TLS801_COUNTRY
     )
-    from sqlalchemy import func, and_, distinct
+    from sqlalchemy import func, and_, or_, distinct
     PATSTAT_AVAILABLE = True
 except ImportError:
     PATSTAT_AVAILABLE = False
     logging.warning("PATSTAT integration not available")
 
-# Fallback country mapper if data_access is not available
+# Import geographic mappers from data_access
 try:
     from data_access.country_mapper import create_country_mapper
-    COUNTRY_MAPPER_AVAILABLE = True
+    from data_access.nuts_mapper import create_nuts_mapper
+    GEOGRAPHIC_MAPPERS_AVAILABLE = True
 except ImportError:
-    COUNTRY_MAPPER_AVAILABLE = False
-    logging.warning("Country mapper not available, using basic mapping")
+    GEOGRAPHIC_MAPPERS_AVAILABLE = False
+    logging.warning("Geographic mappers not available, using basic mapping")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -65,7 +66,7 @@ class GeographicAnalyzer:
     
     def __init__(self, patstat_client: Optional[object] = None):
         """
-        Initialize geographic analyzer.
+        Initialize geographic analyzer with NUTS and country mapping capabilities.
         
         Args:
             patstat_client: PATSTAT client instance for data enrichment
@@ -76,107 +77,153 @@ class GeographicAnalyzer:
         self.geographic_data = None
         self.geographic_intelligence = None
         self.country_mapper = None
+        self.nuts_mapper = None
         
-        # Initialize country mapper if available
-        if COUNTRY_MAPPER_AVAILABLE:
+        # Initialize geographic mappers if available
+        if GEOGRAPHIC_MAPPERS_AVAILABLE:
             try:
                 self.country_mapper = create_country_mapper(patstat_client)
-                logger.info("✅ Enhanced country mapper initialized")
+                self.nuts_mapper = create_nuts_mapper(patstat_client)
+                logger.debug("✅ Enhanced country and NUTS mappers initialized")
             except Exception as e:
-                logger.warning(f"⚠️ Country mapper failed, using basic mapping: {e}")
+                logger.warning(f"⚠️ Geographic mappers failed, using basic mapping: {e}")
         
         # Initialize PATSTAT connection
         if PATSTAT_AVAILABLE and self.patstat_client is None:
             try:
-                self.patstat_client = PatstatClient(env='PROD')
-                logger.info("✅ Connected to PATSTAT for geographic data enrichment")
+                self.patstat_client = PatstatClient(environment='PROD')
+                logger.debug("✅ Connected to PATSTAT for geographic data enrichment")
             except Exception as e:
                 logger.error(f"❌ Failed to connect to PATSTAT: {e}")
                 self.patstat_client = None
         
         if self.patstat_client:
             try:
-                self.session = self.patstat_client.orm()
-                logger.info("✅ PATSTAT session initialized for geographic analysis")
+                # Use the db session from our PatstatClient (preferred method)
+                if hasattr(self.patstat_client, 'db') and self.patstat_client.db is not None:
+                    self.session = self.patstat_client.db
+                    # Get models and SQL functions from our client
+                    if hasattr(self.patstat_client, 'models'):
+                        self.models = self.patstat_client.models
+                    if hasattr(self.patstat_client, 'sql_funcs'):
+                        self.sql_funcs = self.patstat_client.sql_funcs
+                    logger.debug("✅ PATSTAT session initialized for geographic analysis")
+                elif hasattr(self.patstat_client, 'orm') and callable(self.patstat_client.orm):
+                    # Fallback to EPO PatstatClient orm method
+                    self.session = self.patstat_client.orm()
+                    logger.debug("✅ PATSTAT session initialized for geographic analysis (via orm)")
+                else:
+                    logger.error("❌ No valid PATSTAT session method found")
+                    self.session = None
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
     
-    def analyze_search_results(self, search_results: pd.DataFrame) -> pd.DataFrame:
+    def analyze_search_results(self, search_results: pd.DataFrame, 
+                             analyze_applicants: bool = True,
+                             analyze_inventors: bool = False,
+                             nuts_level: int = 3) -> pd.DataFrame:
         """
         Analyze patent search results to extract geographic intelligence.
         
         Args:
             search_results: DataFrame from PatentSearchProcessor with columns:
                            ['docdb_family_id', 'quality_score', 'match_type', 'earliest_filing_year', etc.]
+            analyze_applicants: Include applicant geographic analysis
+            analyze_inventors: Include inventor geographic analysis  
+            nuts_level: NUTS hierarchy level for regional analysis (1-3)
                            
         Returns:
             Enhanced DataFrame with geographic intelligence
         """
-        logger.info(f"🌍 Starting geographic analysis of {len(search_results)} patent families...")
+        logger.debug(f"🌍 Starting geographic analysis of {len(search_results)} patent families...")
         
         if search_results.empty:
             logger.warning("⚠️ No search results to analyze")
             return pd.DataFrame()
         
         # Step 1: Enrich search results with geographic data from PATSTAT
-        logger.info("📊 Step 1: Enriching with geographic data from PATSTAT...")
-        geographic_data = self._enrich_with_geographic_data(search_results)
+        logger.debug("📊 Step 1: Enriching with geographic data from PATSTAT...")
+        logger.debug(f"   Analysis scope: Applicants={analyze_applicants}, Inventors={analyze_inventors}, NUTS Level={nuts_level}")
+        geographic_data = self._enrich_with_geographic_data(search_results, analyze_applicants, analyze_inventors, nuts_level)
         
         if geographic_data.empty:
             logger.warning("⚠️ No geographic data found for the search results")
             return pd.DataFrame()
         
         # Step 2: Analyze geographic patterns and distributions
-        logger.info("🗺️ Step 2: Analyzing geographic patterns and distributions...")
+        logger.debug("🗺️ Step 2: Analyzing geographic patterns and distributions...")
         pattern_analysis = self._analyze_geographic_patterns(geographic_data)
         
         # Step 3: Calculate competitive landscapes by region
-        logger.info("🏆 Step 3: Calculating competitive landscapes by region...")
+        logger.debug("🏆 Step 3: Calculating competitive landscapes by region...")
         competitive_analysis = self._analyze_competitive_landscapes(pattern_analysis)
         
         # Step 4: Generate geographic intelligence insights
-        logger.info("🎯 Step 4: Generating geographic intelligence insights...")
+        logger.debug("🎯 Step 4: Generating geographic intelligence insights...")
         intelligence_analysis = self._generate_geographic_intelligence(competitive_analysis)
         
         self.analyzed_data = intelligence_analysis
         self.geographic_data = geographic_data
         
-        logger.info(f"✅ Geographic analysis complete: {len(intelligence_analysis)} geographic patterns analyzed")
+        logger.debug(f"✅ Geographic analysis complete: {len(intelligence_analysis)} geographic patterns analyzed")
         
         return intelligence_analysis
     
-    def _enrich_with_geographic_data(self, search_results: pd.DataFrame) -> pd.DataFrame:
+    def _enrich_with_geographic_data(self, search_results: pd.DataFrame,
+                                   analyze_applicants: bool = True,
+                                   analyze_inventors: bool = False, 
+                                   nuts_level: int = 3) -> pd.DataFrame:
         """
-        Enrich search results with geographic data from PATSTAT.
+        Enrich search results with geographic data from PATSTAT including NUTS codes.
         
-        Uses TLS207_PERS_APPLN and TLS206_PERSON tables to get applicant geographic information.
+        Uses TLS207_PERS_APPLN and TLS206_PERSON tables to get geographic information
+        for both applicants and inventors with NUTS regional data support.
+        
+        Args:
+            search_results: Patent family search results
+            analyze_applicants: Include applicant data (applt_seq_nr > 0)
+            analyze_inventors: Include inventor data (invt_seq_nr > 0)
+            nuts_level: Target NUTS level for regional analysis
         """
         if not self.session:
             logger.error("❌ No PATSTAT session available for geographic enrichment")
             return pd.DataFrame()
         
         family_ids = search_results['docdb_family_id'].tolist()
-        logger.info(f"   Enriching {len(family_ids)} families with geographic data...")
+        logger.debug(f"   Enriching {len(family_ids)} families with geographic data...")
+        
+        # Build role filter conditions
+        role_conditions = []
+        if analyze_applicants:
+            role_conditions.append(TLS207_PERS_APPLN.applt_seq_nr > 0)
+        if analyze_inventors:
+            role_conditions.append(TLS207_PERS_APPLN.invt_seq_nr > 0)
+        
+        if not role_conditions:
+            logger.error("❌ Must analyze applicants, inventors, or both")
+            return pd.DataFrame()
         
         try:
-            # Query geographic data for the families
-            # Get applicant countries through person table
+            # Query geographic data including NUTS codes
             geographic_query = self.session.query(
                 TLS201_APPLN.docdb_family_id,
                 TLS201_APPLN.appln_id,
                 TLS201_APPLN.earliest_filing_year,
                 TLS207_PERS_APPLN.person_id,
                 TLS207_PERS_APPLN.applt_seq_nr,
+                TLS207_PERS_APPLN.invt_seq_nr,
                 TLS206_PERSON.person_name,
                 TLS206_PERSON.person_address,
-                TLS206_PERSON.person_ctry_code
+                TLS206_PERSON.person_ctry_code,
+                TLS206_PERSON.nuts.label('nuts_code'),
+                TLS206_PERSON.nuts_level
             ).select_from(TLS201_APPLN)\
             .join(TLS207_PERS_APPLN, TLS201_APPLN.appln_id == TLS207_PERS_APPLN.appln_id)\
             .join(TLS206_PERSON, TLS207_PERS_APPLN.person_id == TLS206_PERSON.person_id)\
             .filter(
                 and_(
                     TLS201_APPLN.docdb_family_id.in_(family_ids),
-                    TLS207_PERS_APPLN.applt_seq_nr > 0  # Only applicants, not inventors
+                    role_conditions[0] if len(role_conditions) == 1 else or_(*role_conditions)
                 )
             )
             
@@ -186,59 +233,130 @@ class GeographicAnalyzer:
                 logger.warning("⚠️ No geographic data found in PATSTAT for these families")
                 return pd.DataFrame()
             
-            # Convert to DataFrame
+            # Convert to DataFrame with NUTS data
             geographic_df = pd.DataFrame(result, columns=[
                 'docdb_family_id', 'appln_id', 'earliest_filing_year', 'person_id',
-                'applt_seq_nr', 'person_name', 'person_address', 'person_ctry_code'
+                'applt_seq_nr', 'invt_seq_nr', 'person_name', 'person_address', 
+                'person_ctry_code', 'nuts_code', 'nuts_level'
             ])
+            
+            # Add role identification
+            geographic_df['is_applicant'] = geographic_df['applt_seq_nr'] > 0
+            geographic_df['is_inventor'] = geographic_df['invt_seq_nr'] > 0
+            geographic_df['person_role'] = geographic_df.apply(
+                lambda row: 'Applicant' if row['is_applicant'] and not row['is_inventor']
+                           else 'Inventor' if row['is_inventor'] and not row['is_applicant']
+                           else 'Both' if row['is_applicant'] and row['is_inventor']
+                           else 'Unknown', axis=1
+            )
             
             # Merge with original search results to preserve quality scores
             enriched_data = search_results.merge(
                 geographic_df,
                 on='docdb_family_id',
-                how='inner'
+                how='inner',
+                suffixes=('', '_patstat')  # Keep original column names
             )
             
-            # Clean and standardize geographic data
-            enriched_data = self._clean_geographic_data_patstat(enriched_data)
+            # Fix duplicate column names - prefer search results version
+            if 'appln_id_patstat' in enriched_data.columns:
+                enriched_data = enriched_data.drop('appln_id_patstat', axis=1)
+            if 'earliest_filing_year_patstat' in enriched_data.columns:
+                enriched_data = enriched_data.drop('earliest_filing_year_patstat', axis=1)
             
-            logger.info(f"   ✅ Enriched {len(enriched_data)} geographic relationships")
-            logger.info(f"   🗺️ Covering {enriched_data['docdb_family_id'].nunique()} families")
-            logger.info(f"   🌍 Found {enriched_data['person_ctry_code'].nunique()} unique countries")
+            # Clean and standardize geographic data with NUTS support
+            enriched_data = self._clean_geographic_data_with_nuts(enriched_data, nuts_level)
+            
+            logger.debug(f"   ✅ Enriched {len(enriched_data)} geographic relationships")
+            logger.debug(f"   🗺️ Covering {enriched_data['docdb_family_id'].nunique()} families")
+            logger.debug(f"   🌍 Found {enriched_data['person_ctry_code'].nunique()} unique countries")
+            if 'nuts_code' in enriched_data.columns:
+                nuts_coverage = enriched_data['nuts_code'].notna().sum()
+                logger.debug(f"   🇪🇺 NUTS coverage: {nuts_coverage}/{len(enriched_data)} ({nuts_coverage/len(enriched_data)*100:.1f}%)")
+            logger.debug(f"   👥 Role distribution: {enriched_data['person_role'].value_counts().to_dict()}")
             
             return enriched_data
             
         except Exception as e:
             logger.error(f"❌ Failed to enrich with geographic data: {e}")
-            return pd.DataFrame()
+            logger.warning("⚠️ Falling back to basic geographic mapping from search results")
+            
+            # Fallback: use basic country mapping from search results if available
+            fallback_data = search_results.copy()
+            
+            # Add basic geographic columns that processors expect
+            fallback_data['person_ctry_code'] = 'XX'  # Unknown country
+            fallback_data['geographic_level'] = 'country'
+            fallback_data['primary_region'] = 'Unknown'
+            fallback_data['geographic_quality'] = 0.1  # Low quality fallback
+            fallback_data['family_country_count'] = 1
+            
+            return fallback_data
     
-    def _clean_geographic_data_patstat(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Clean geographic data from PATSTAT."""
-        logger.info("🧹 Cleaning PATSTAT geographic data...")
+    def _clean_geographic_data_with_nuts(self, df: pd.DataFrame, nuts_level: int = 3) -> pd.DataFrame:
+        """Clean geographic data from PATSTAT with NUTS support."""
+        logger.debug(f"🧹 Cleaning PATSTAT geographic data with NUTS level {nuts_level} support...")
         
         # Clean country codes
         df['person_ctry_code'] = df['person_ctry_code'].fillna('XX')
         df['person_ctry_code'] = df['person_ctry_code'].str.upper().str.strip()
         df['person_ctry_code'] = df['person_ctry_code'].replace(['', 'NULL', 'NONE'], 'XX')
         
-        # Add enhanced country information
-        enhanced_countries = []
-        for ctry_code in df['person_ctry_code'].unique():
+        # Clean NUTS codes
+        df['nuts_code'] = df['nuts_code'].astype(str).str.strip()
+        df['nuts_code'] = df['nuts_code'].replace(['nan', 'None', 'NULL', ''], None)
+        df['nuts_level'] = df['nuts_level'].fillna(9)  # Level 9 = no NUTS assigned
+        
+        # Handle NUTS data quality issues
+        df['has_nuts'] = df['nuts_code'].notna() & (df['nuts_level'] != 9)
+        df['nuts_coverage'] = df['has_nuts'].apply(lambda x: 'NUTS Available' if x else 'Country Only')
+        
+        # Add enhanced geographic information using mappers
+        enhanced_geo_data = []
+        for _, row in df.iterrows():
+            ctry_code = row['person_ctry_code']
+            nuts_code = row['nuts_code']
+            
+            # Get country information
             country_info = self._get_country_info(ctry_code)
-            enhanced_countries.append({
-                'person_ctry_code': ctry_code,
+            
+            # Get NUTS information if available
+            nuts_info = self._get_nuts_info(nuts_code) if pd.notna(nuts_code) else {}
+            
+            # Determine primary geographic level based on target nuts_level
+            if row['has_nuts'] and nuts_code:
+                # Use NUTS mapper to get appropriate level
+                if self.nuts_mapper:
+                    hierarchy = self.nuts_mapper.get_nuts_hierarchy(nuts_code)
+                    target_nuts = self._get_target_nuts_from_hierarchy(hierarchy, nuts_level)
+                    region_name = self.nuts_mapper.get_nuts_name(target_nuts) if target_nuts else country_info['name']
+                    geographic_level = f'NUTS{nuts_level}'
+                    primary_region = target_nuts or ctry_code
+                else:
+                    region_name = nuts_info.get('nuts_label', country_info['name'])
+                    geographic_level = f'NUTS{row["nuts_level"]}'
+                    primary_region = nuts_code
+            else:
+                # Fallback to country level
+                region_name = country_info['name']
+                geographic_level = 'Country'
+                primary_region = ctry_code
+            
+            enhanced_geo_data.append({
                 'country_name': country_info['name'],
-                'continent': country_info['continent'],
-                'region': country_info['region'],
+                'continent': country_info.get('continent', 'Unknown'),
+                'region': country_info.get('region', 'Other'),
+                'nuts_region_name': region_name,
+                'geographic_level': geographic_level,
+                'primary_region': primary_region,
                 'is_major_economy': ctry_code in ['US', 'CN', 'JP', 'DE', 'GB', 'FR', 'IT', 'CA', 'KR'],
-                'is_ip5_office': ctry_code in ['US', 'CN', 'JP', 'EP', 'KR'],  # EP represents European Patent Office
-                'is_emerging_market': ctry_code in ['CN', 'IN', 'BR', 'RU', 'MX', 'TR', 'ID', 'SA']
+                'is_ip5_office': ctry_code in ['US', 'CN', 'JP', 'EP', 'KR'],
+                'is_emerging_market': ctry_code in ['CN', 'IN', 'BR', 'RU', 'MX', 'TR', 'ID', 'SA'],
+                'is_eu_nuts': row['has_nuts']
             })
         
-        enhanced_countries_df = pd.DataFrame(enhanced_countries)
-        
-        # Merge enhanced country information
-        df = df.merge(enhanced_countries_df, on='person_ctry_code', how='left')
+        enhanced_geo_df = pd.DataFrame(enhanced_geo_data)
+        df = pd.concat([df, enhanced_geo_df], axis=1)
         
         # Handle family size information
         family_size_data = df.groupby('docdb_family_id').agg({
@@ -271,11 +389,41 @@ class GeographicAnalyzer:
             'region': 'Other'
         })
     
+    def _get_nuts_info(self, nuts_code: str) -> Dict[str, str]:
+        """Get NUTS information using NUTS mapper or fallback."""
+        if self.nuts_mapper and nuts_code:
+            try:
+                return self.nuts_mapper.get_nuts_info(nuts_code)
+            except:
+                pass
+        
+        # Fallback for NUTS data
+        return {
+            'nuts_code': nuts_code or 'Unknown',
+            'nuts_label': 'Unknown Region',
+            'nuts_level': 9
+        }
+    
+    def _get_target_nuts_from_hierarchy(self, hierarchy: List[str], target_level: int) -> Optional[str]:
+        """Extract NUTS code at target level from hierarchy."""
+        if not hierarchy or target_level < 0:
+            return None
+        
+        # NUTS levels: 0=Country (2 chars), 1=3 chars, 2=4 chars, 3=5 chars
+        target_length = 2 + target_level if target_level > 0 else 2
+        
+        for code in hierarchy:
+            if len(code) == target_length:
+                return code
+        
+        # Return deepest available if target not found
+        return hierarchy[-1] if hierarchy else None
+    
     def _analyze_geographic_patterns(self, geographic_data: pd.DataFrame) -> pd.DataFrame:
         """
         Analyze geographic patterns and distributions.
         """
-        logger.info("🗺️ Analyzing geographic patterns...")
+        logger.debug("🗺️ Analyzing geographic patterns...")
         
         # Check available year columns
         year_col = None
@@ -288,7 +436,7 @@ class GeographicAnalyzer:
             logger.error("❌ No filing year column found for geographic analysis")
             return pd.DataFrame()
         
-        logger.info(f"   Using year column: {year_col}")
+        logger.debug(f"   Using year column: {year_col}")
         
         # Aggregate by country
         agg_dict = {
@@ -302,12 +450,17 @@ class GeographicAnalyzer:
         if 'quality_score' in geographic_data.columns:
             agg_dict['quality_score'] = 'mean'
         
-        # Group by country
-        country_analysis = geographic_data.groupby('country_name').agg(agg_dict).reset_index()
+        # Group by primary region (NUTS level or country)
+        # Use nuts_region_name for more granular analysis when NUTS available
+        primary_grouping_col = 'nuts_region_name'
+        if primary_grouping_col not in geographic_data.columns:
+            primary_grouping_col = 'country_name'
+        
+        region_analysis = geographic_data.groupby([primary_grouping_col, 'geographic_level']).agg(agg_dict).reset_index()
         
         # Flatten column names
         flattened_columns = []
-        for col in country_analysis.columns:
+        for col in region_analysis.columns:
             if isinstance(col, tuple):
                 if col[1] == '':
                     flattened_columns.append(col[0])
@@ -322,7 +475,7 @@ class GeographicAnalyzer:
             else:
                 flattened_columns.append(col)
         
-        country_analysis.columns = flattened_columns
+        region_analysis.columns = flattened_columns
         
         # Map column names
         column_mapping = {
@@ -333,36 +486,179 @@ class GeographicAnalyzer:
         }
         
         for old_name, new_name in column_mapping.items():
-            if old_name in country_analysis.columns:
-                country_analysis = country_analysis.rename(columns={old_name: new_name})
+            if old_name in region_analysis.columns:
+                region_analysis = region_analysis.rename(columns={old_name: new_name})
         
         # Add missing columns with defaults
-        if 'avg_search_quality' not in country_analysis.columns:
-            country_analysis['avg_search_quality'] = 2.0
+        if 'avg_search_quality' not in region_analysis.columns:
+            region_analysis['avg_search_quality'] = 2.0
         
         # Calculate geographic metrics
-        total_families = country_analysis['patent_families'].sum()
-        country_analysis['market_share_pct'] = (country_analysis['patent_families'] / total_families * 100).round(2)
-        country_analysis['activity_span'] = country_analysis['latest_filing_year'] - country_analysis['first_filing_year'] + 1
+        total_families = region_analysis['patent_families'].sum()
+        region_analysis['market_share_pct'] = (region_analysis['patent_families'] / total_families * 100).round(2)
+        region_analysis['activity_span'] = region_analysis['latest_filing_year'] - region_analysis['first_filing_year'] + 1
         
-        # Add region information
-        country_region_map = geographic_data[['country_name', 'region', 'continent']].drop_duplicates()
-        country_analysis = country_analysis.merge(country_region_map, on='country_name', how='left')
+        # Add region information from original data
+        region_info_cols = ['nuts_region_name', 'country_name', 'region', 'continent', 'geographic_level']
+        available_cols = [col for col in region_info_cols if col in geographic_data.columns]
+        
+        if len(available_cols) > 1:
+            region_map = geographic_data[available_cols].drop_duplicates()
+            merge_col = primary_grouping_col
+            if merge_col in region_map.columns:
+                region_analysis = region_analysis.merge(region_map, on=[merge_col, 'geographic_level'], how='left')
         
         # Sort by patent families
-        country_analysis = country_analysis.sort_values('patent_families', ascending=False).reset_index(drop=True)
-        country_analysis['country_rank'] = range(1, len(country_analysis) + 1)
+        region_analysis = region_analysis.sort_values('patent_families', ascending=False).reset_index(drop=True)
+        region_analysis['regional_rank'] = range(1, len(region_analysis) + 1)
         
-        logger.info(f"   ✅ Analyzed geographic patterns for {len(country_analysis)} countries")
-        logger.info(f"   🏆 Top country: {country_analysis.iloc[0]['country_name']} ({country_analysis.iloc[0]['patent_families']} families)")
+        # Add NUTS-specific analysis
+        if 'geographic_level' in region_analysis.columns:
+            nuts_summary = region_analysis['geographic_level'].value_counts()
+            logger.debug(f"   🇪🇺 Geographic level distribution: {nuts_summary.to_dict()}")
         
-        return country_analysis
+        logger.debug(f"   ✅ Analyzed geographic patterns for {len(region_analysis)} regions")
+        if len(region_analysis) > 0:
+            top_region = region_analysis.iloc[0]
+            logger.debug(f"   🏆 Top region: {top_region[primary_grouping_col]} ({top_region['patent_families']} families, {top_region['geographic_level']})")
+        
+        return region_analysis
+    
+    def analyze_inventor_geography(self, search_results: pd.DataFrame, nuts_level: int = 3) -> pd.DataFrame:
+        """
+        Specialized analysis for inventor geographic patterns.
+        
+        Args:
+            search_results: Patent family search results
+            nuts_level: NUTS level for regional analysis
+            
+        Returns:
+            DataFrame with inventor-specific geographic analysis
+        """
+        logger.debug("👨‍🔬 Starting inventor-specific geographic analysis...")
+        
+        # Run geographic analysis focused on inventors
+        inventor_data = self.analyze_search_results(
+            search_results, 
+            analyze_applicants=False, 
+            analyze_inventors=True, 
+            nuts_level=nuts_level
+        )
+        
+        if inventor_data.empty:
+            logger.warning("⚠️ No inventor geographic data found")
+            return pd.DataFrame()
+        
+        # Add inventor-specific insights
+        inventor_data['innovation_geography'] = inventor_data.apply(
+            lambda row: f"{row.get('nuts_region_name', row.get('country_name', 'Unknown'))} "
+                       f"({row.get('geographic_level', 'Country')})", axis=1
+        )
+        
+        # Calculate innovation density metrics
+        if 'patent_families' in inventor_data.columns:
+            inventor_data['innovation_density_score'] = inventor_data['patent_families'] / inventor_data['patent_families'].max()
+        
+        logger.debug(f"✅ Inventor geographic analysis complete: {len(inventor_data)} innovation regions")
+        
+        return inventor_data
+    
+    def analyze_applicant_geography(self, search_results: pd.DataFrame, nuts_level: int = 3) -> pd.DataFrame:
+        """
+        Specialized analysis for applicant geographic patterns.
+        
+        Args:
+            search_results: Patent family search results
+            nuts_level: NUTS level for regional analysis
+            
+        Returns:
+            DataFrame with applicant-specific geographic analysis
+        """
+        logger.debug("🏢 Starting applicant-specific geographic analysis...")
+        
+        # Run geographic analysis focused on applicants
+        applicant_data = self.analyze_search_results(
+            search_results, 
+            analyze_applicants=True, 
+            analyze_inventors=False, 
+            nuts_level=nuts_level
+        )
+        
+        if applicant_data.empty:
+            logger.warning("⚠️ No applicant geographic data found")
+            return pd.DataFrame()
+        
+        # Add applicant-specific insights
+        applicant_data['filing_geography'] = applicant_data.apply(
+            lambda row: f"{row.get('nuts_region_name', row.get('country_name', 'Unknown'))} "
+                       f"({row.get('geographic_level', 'Country')})", axis=1
+        )
+        
+        # Calculate market presence metrics
+        if 'patent_families' in applicant_data.columns:
+            applicant_data['market_presence_score'] = applicant_data['patent_families'] / applicant_data['patent_families'].max()
+        
+        logger.debug(f"✅ Applicant geographic analysis complete: {len(applicant_data)} market regions")
+        
+        return applicant_data
+    
+    def compare_innovation_vs_filing_geography(self, search_results: pd.DataFrame, nuts_level: int = 3) -> Dict:
+        """
+        Compare innovation geography (inventors) vs filing geography (applicants).
+        
+        Args:
+            search_results: Patent family search results
+            nuts_level: NUTS level for regional analysis
+            
+        Returns:
+            Dictionary with comparative analysis
+        """
+        logger.debug("🔬🏢 Comparing innovation vs filing geography...")
+        
+        # Get both analyses
+        inventor_data = self.analyze_inventor_geography(search_results, nuts_level)
+        applicant_data = self.analyze_applicant_geography(search_results, nuts_level)
+        
+        if inventor_data.empty or applicant_data.empty:
+            logger.warning("⚠️ Insufficient data for geographic comparison")
+            return {}
+        
+        # Extract region names for comparison
+        inventor_regions = set(inventor_data.get('nuts_region_name', inventor_data.get('country_name', [])))
+        applicant_regions = set(applicant_data.get('nuts_region_name', applicant_data.get('country_name', [])))
+        
+        # Calculate overlap and differences
+        common_regions = inventor_regions.intersection(applicant_regions)
+        innovation_only = inventor_regions - applicant_regions
+        filing_only = applicant_regions - inventor_regions
+        
+        comparison = {
+            'overview': {
+                'innovation_regions': len(inventor_regions),
+                'filing_regions': len(applicant_regions),
+                'common_regions': len(common_regions),
+                'innovation_only_regions': len(innovation_only),
+                'filing_only_regions': len(filing_only),
+                'geographic_overlap_pct': len(common_regions) / max(len(inventor_regions), 1) * 100
+            },
+            'regional_analysis': {
+                'common_regions': list(common_regions),
+                'innovation_hotspots': list(innovation_only),
+                'filing_centers': list(filing_only)
+            },
+            'top_innovation_regions': inventor_data.head(5)[['nuts_region_name', 'patent_families', 'geographic_level']].to_dict('records') if len(inventor_data) > 0 else [],
+            'top_filing_regions': applicant_data.head(5)[['nuts_region_name', 'patent_families', 'geographic_level']].to_dict('records') if len(applicant_data) > 0 else []
+        }
+        
+        logger.debug(f"✅ Geographic comparison complete: {comparison['overview']['geographic_overlap_pct']:.1f}% overlap")
+        
+        return comparison
     
     def _analyze_competitive_landscapes(self, pattern_analysis: pd.DataFrame) -> pd.DataFrame:
         """
         Analyze competitive landscapes by region and country.
         """
-        logger.info("🏆 Analyzing competitive landscapes...")
+        logger.debug("🏆 Analyzing competitive landscapes...")
         
         # Add competitive tier classification
         pattern_analysis['competitive_tier'] = pd.cut(
@@ -389,7 +685,7 @@ class GeographicAnalyzer:
         """
         Generate comprehensive geographic intelligence insights.
         """
-        logger.info("🎯 Generating geographic intelligence insights...")
+        logger.debug("🎯 Generating geographic intelligence insights...")
         
         # Enhance competitive analysis with strategic insights
         enhanced_analysis = competitive_analysis.copy()
@@ -459,7 +755,7 @@ class GeographicAnalyzer:
     
     def _clean_geographic_data(self, df: pd.DataFrame, country_col: str) -> pd.DataFrame:
         """Clean and standardize geographic data using enhanced country mapping."""
-        logger.info("🧹 Cleaning geographic data with enhanced mapping...")
+        logger.debug("🧹 Cleaning geographic data with enhanced mapping...")
         
         # Handle missing values
         df[country_col] = df[country_col].fillna('XX')
@@ -490,7 +786,7 @@ class GeographicAnalyzer:
     
     def _add_geographic_metadata(self, df: pd.DataFrame, country_col: str) -> pd.DataFrame:
         """Add enhanced geographic metadata using configuration-driven approach."""
-        logger.info("🗺️ Adding enhanced geographic metadata...")
+        logger.debug("🗺️ Adding enhanced geographic metadata...")
         
         # Regional groupings are already added by the country mapper
         # Add primary region based on regional groups
@@ -547,7 +843,7 @@ class GeographicAnalyzer:
     
     def _analyze_filing_strategies(self, df: pd.DataFrame, family_size_col: str) -> pd.DataFrame:
         """Analyze strategic filing patterns based on family sizes."""
-        logger.info("🎯 Analyzing filing strategies...")
+        logger.debug("🎯 Analyzing filing strategies...")
         
         if family_size_col in df.columns:
             # Strategic classification based on family size
@@ -570,7 +866,7 @@ class GeographicAnalyzer:
     
     def _add_temporal_patterns(self, df: pd.DataFrame, year_col: str) -> pd.DataFrame:
         """Add temporal analysis patterns."""
-        logger.info("📅 Adding temporal patterns...")
+        logger.debug("📅 Adding temporal patterns...")
         
         # Time period classification
         df['filing_period'] = pd.cut(
@@ -591,7 +887,7 @@ class GeographicAnalyzer:
     def _calculate_geographic_competitiveness(self, df: pd.DataFrame, 
                                            family_col: str) -> pd.DataFrame:
         """Calculate geographic competitiveness metrics."""
-        logger.info("🏆 Calculating geographic competitiveness...")
+        logger.debug("🏆 Calculating geographic competitiveness...")
         
         # Calculate country-level metrics
         country_metrics = df.groupby('country_name').agg({
@@ -636,7 +932,7 @@ class GeographicAnalyzer:
             raise ValueError("No analyzed data available. Run analyze_search_results first.")
         
         df = self.analyzed_data
-        logger.info("📋 Generating geographic intelligence summary...")
+        logger.debug("📋 Generating geographic intelligence summary...")
         
         total_families = df['patent_families'].sum()
         top_country = df.iloc[0] if len(df) > 0 else None
@@ -734,7 +1030,7 @@ class GeographicAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_geographic_patterns first.")
         
-        logger.info("📋 Generating geographic intelligence summary...")
+        logger.debug("📋 Generating geographic intelligence summary...")
         
         # Country-level summary
         country_summary = df.groupby('country_name').agg({
@@ -844,7 +1140,7 @@ class GeographicAnalyzer:
         if df is None:
             raise ValueError("No analyzed data available. Run analyze_geographic_patterns first.")
         
-        logger.info("📈 Analyzing filing evolution over time...")
+        logger.debug("📈 Analyzing filing evolution over time...")
         
         # Group by country and year
         evolution_analysis = df.groupby(['country_name', 'earliest_filing_year']).agg({
@@ -897,7 +1193,7 @@ class GeographicDataProcessor:
         Returns:
             Processed DataFrame ready for geographic analysis
         """
-        logger.info(f"📊 Processing {len(raw_data)} raw geographic records...")
+        logger.debug(f"📊 Processing {len(raw_data)} raw geographic records...")
         
         # Convert to DataFrame
         df = pd.DataFrame(raw_data, columns=[
@@ -910,14 +1206,14 @@ class GeographicDataProcessor:
         df = self._validate_data_quality(df)
         df = self._remove_duplicates(df)
         
-        logger.info(f"✅ Processed to {len(df)} clean geographic records")
+        logger.debug(f"✅ Processed to {len(df)} clean geographic records")
         self.processed_data = df
         
         return df
     
     def _clean_geographic_fields(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean geographic-specific fields."""
-        logger.info("🧹 Cleaning geographic fields...")
+        logger.debug("🧹 Cleaning geographic fields...")
         
         # Clean country codes
         df['country_code'] = df['country_code'].astype(str).str.upper().str.strip()
@@ -935,7 +1231,7 @@ class GeographicDataProcessor:
     
     def _validate_data_quality(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate data quality and remove invalid records."""
-        logger.info("🔍 Validating data quality...")
+        logger.debug("🔍 Validating data quality...")
         
         initial_count = len(df)
         
@@ -951,13 +1247,13 @@ class GeographicDataProcessor:
         
         removed_count = initial_count - len(df)
         if removed_count > 0:
-            logger.info(f"📊 Removed {removed_count} invalid records")
+            logger.debug(f"📊 Removed {removed_count} invalid records")
         
         return df
     
     def _remove_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove duplicate records."""
-        logger.info("🔍 Removing duplicates...")
+        logger.debug("🔍 Removing duplicates...")
         
         # Remove exact duplicates
         initial_count = len(df)
@@ -968,7 +1264,7 @@ class GeographicDataProcessor:
         
         removed_count = initial_count - len(df)
         if removed_count > 0:
-            logger.info(f"📊 Removed {removed_count} duplicate records")
+            logger.debug(f"📊 Removed {removed_count} duplicate records")
         
         return df
 

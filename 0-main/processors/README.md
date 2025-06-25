@@ -39,12 +39,14 @@ The Processors Module provides comprehensive patent data processing capabilities
 - **Size**: 1,132 lines of production code
 - **Status**: ✅ **Fully refactored with PATSTAT integration**
 
-#### 4. **Geographic Analysis** (`geographic.py`)
-- **Purpose**: Strategic geographical insights from search results
-- **Features**: PATSTAT geographic enrichment, enhanced country mapping, regional analysis
-- **Output**: International competitive landscape analysis
-- **Size**: 995 lines of production code
-- **Status**: ✅ **Fully refactored with PATSTAT integration**
+#### 4. **Enhanced Geographic Analysis** (`geographic.py`)
+- **Purpose**: Strategic geographical insights with EU NUTS regional analysis
+- **Features**: PATSTAT TLS206_PERSON NUTS integration, inventor vs applicant analysis, hierarchical EU mapping
+- **NUTS Integration**: 5-level EU hierarchy (Country → NUTS1 → NUTS2 → NUTS3 → Districts)
+- **Role Analysis**: Separate inventor geography (R&D locations) vs applicant geography (filing strategies)
+- **Output**: Multi-level regional competitive landscape with innovation vs filing geographic insights
+- **Size**: 1,200+ lines of production code with NUTS support
+- **Status**: ✅ **Enhanced with NUTS integration and inventor analysis (2025)**
 
 #### 5. **Citation Analysis** (`citation.py`)
 - **Purpose**: Innovation impact analysis from search results
@@ -60,13 +62,15 @@ The Processors Module provides comprehensive patent data processing capabilities
 - **Size**: 294 lines of integration code
 - **Status**: ✅ **Fully updated for refactored processors**
 
-**Total Module Size**: 4,702 lines of production-ready code
+**Total Module Size**: 4,900+ lines of production-ready code with NUTS integration
 
 ## 🚀 **Refactoring Achievements (2025)**
 
-### ✅ **All Processors Refactored**
+### ✅ **All Processors Enhanced (2025)**
 - **Unified Interface**: All processors use `analyze_search_results(search_results)` method
 - **PATSTAT Integration**: Real database connectivity with TLS table queries
+- **NUTS Geographic Integration**: EU hierarchical regional analysis with TLS206_PERSON NUTS codes
+- **Inventor Analysis**: Role-based geographic analysis (applicants vs inventors)
 - **Search Foundation**: PatentSearchProcessor provides consistent input format
 - **Factory Functions**: Enhanced with optional PATSTAT client parameters
 
@@ -84,6 +88,8 @@ The Processors Module provides comprehensive patent data processing capabilities
 - ✅ **PROD Environment**: Confirmed working with real database
 - ✅ **All Processors**: PATSTAT clients initialized and validated
 - ✅ **Real Data Processing**: Successfully processed 1,848 classification relationships
+- ✅ **NUTS Integration**: 2,056 NUTS regions loaded from TLS904_NUTS table
+- ✅ **Role-Based Analysis**: Inventor and applicant data from TLS206_PERSON/TLS207_PERS_APPLN
 - ✅ **Proven Patterns**: Based on EPO PATLIB 2025 Live Demo working code
 
 ## Key Features
@@ -97,6 +103,8 @@ The Processors Module provides comprehensive patent data processing capabilities
 ### 📊 **PATSTAT Data Enrichment**
 - Real-time PATSTAT database integration (PROD environment)
 - TLS table queries for applicant, classification, citation, and geographic data
+- **NUTS Geographic Integration**: TLS206_PERSON NUTS codes and TLS904_NUTS reference data
+- **Role-Based Analysis**: TLS207_PERS_APPLN for inventor vs applicant differentiation
 - Fallback to mock data when PATSTAT unavailable (testing/development)
 - Enhanced intelligence generation with real patent data
 
@@ -106,10 +114,13 @@ The Processors Module provides comprehensive patent data processing capabilities
 - Memory-efficient processing with streaming capabilities
 - Consistent logging and monitoring across all processors
 
-### 🔧 **Enhanced Geographic Intelligence**
-- PATSTAT TLS801_COUNTRY table integration
-- pycountry library enhancement with 249 countries
-- 7 strategic regional groupings for market analysis
+### 🔧 **Enhanced Geographic Intelligence with NUTS**
+- **NUTS Integration**: TLS904_NUTS and TLS206_PERSON PATSTAT tables
+- **EU Regional Hierarchy**: 5-level NUTS system (Country → NUTS1 → NUTS2 → NUTS3 → Districts)
+- **Role-Based Analysis**: Inventor geography (R&D locations) vs Applicant geography (filing strategies)
+- **Data Coverage**: 2,056 NUTS regions across 43 countries (28 EU + 5 candidates + 4 EFTA + others)
+- **Quality Handling**: NUTS_LEVEL=9 (missing data) with graceful country-level fallback
+- **Country Enhancement**: pycountry library with 249 countries and 7 strategic regional groupings
 - Configuration-driven approach (no hardcoded mappings)
 
 ## Usage Examples
@@ -144,8 +155,77 @@ technology_intelligence = classification_analyzer.analyze_search_results(search_
 geographic_analyzer = create_geographic_analyzer()
 geographic_intelligence = geographic_analyzer.analyze_search_results(search_results)
 
+# Enhanced NUTS-aware geographic analysis
+nuts_analysis = geographic_analyzer.analyze_search_results(
+    search_results, 
+    analyze_applicants=True, 
+    analyze_inventors=True,
+    nuts_level=2  # NUTS level 2 (basic regions)
+)
+
+# Role-specific geographic analysis
+inventor_geography = geographic_analyzer.analyze_inventor_geography(
+    search_results, nuts_level=3  # Innovation R&D locations
+)
+
+applicant_geography = geographic_analyzer.analyze_applicant_geography(
+    search_results, nuts_level=1  # Filing strategy regions  
+)
+
+# Compare innovation vs filing geography
+geo_comparison = geographic_analyzer.compare_innovation_vs_filing_geography(
+    search_results, nuts_level=2
+)
+
 citation_analyzer = create_citation_analyzer()
 citation_intelligence = citation_analyzer.analyze_search_results(search_results)
+```
+
+### Enhanced Geographic Analysis with NUTS Integration
+
+```python
+from processors import create_geographic_analyzer
+
+# Initialize with NUTS and country mapping support
+geographic_analyzer = create_geographic_analyzer()
+
+# Multi-level NUTS analysis
+nuts_levels = [1, 2, 3]  # Major regions, basic regions, small regions
+for level in nuts_levels:
+    results = geographic_analyzer.analyze_search_results(
+        search_results,
+        analyze_applicants=True,
+        analyze_inventors=True, 
+        nuts_level=level
+    )
+    print(f"NUTS Level {level}: {len(results)} regional insights")
+
+# Innovation vs Filing Geography Analysis
+comparison = geographic_analyzer.compare_innovation_vs_filing_geography(
+    search_results, nuts_level=2
+)
+
+# Access comparison results
+inventor_regions = comparison['inventor_geography']  # R&D locations
+applicant_regions = comparison['applicant_geography']  # Filing strategies
+regional_overlap = comparison['regional_overlap']  # Geographic alignment
+
+# European regional analysis with NUTS hierarchy
+eu_regional_analysis = geographic_analyzer.analyze_search_results(
+    search_results,
+    analyze_applicants=True,
+    analyze_inventors=True,
+    nuts_level=2
+)
+
+# Filter for specific EU regions
+de_analysis = eu_regional_analysis[
+    eu_regional_analysis['nuts_code'].str.startswith('DE')
+]  # German regions
+
+fr_analysis = eu_regional_analysis[
+    eu_regional_analysis['nuts_code'].str.startswith('FR') 
+]  # French regions
 ```
 
 ### Comprehensive Analysis Pipeline
@@ -228,6 +308,24 @@ classification_results = pd.DataFrame({
     'innovation_score': [8.5, ...],
     'network_centrality': [0.75, ...],
     'trend_direction': ['Growing', ...]
+})
+```
+
+#### Enhanced Geographic Analysis Output
+```python
+# Role-based geographic analysis with NUTS integration
+geographic_results = pd.DataFrame({
+    'nuts_code': ['DE111', 'FR101', 'IT123', ...],
+    'nuts_level': [3, 3, 3, ...],
+    'nuts_label': ['Stuttgart', 'Île de France', 'Nord-Ovest', ...],
+    'country_code': ['DE', 'FR', 'IT', ...],
+    'region_name': ['Stuttgart', 'Paris Region', 'Northwest Italy', ...],
+    'patent_families': [45, 32, 18, ...],
+    'inventor_families': [28, 15, 12, ...],  # R&D locations
+    'applicant_families': [38, 25, 16, ...],  # Filing strategies
+    'innovation_intensity': [0.85, 0.72, 0.68, ...],
+    'filing_concentration': [0.78, 0.81, 0.73, ...],
+    'regional_hierarchy': [['DE', 'DE1', 'DE11', 'DE111'], ...]
 })
 ```
 

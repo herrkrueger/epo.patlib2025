@@ -1,9 +1,10 @@
 """
-Charts Module for REE Patent Analysis Visualizations
-Enhanced from EPO PATLIB 2025 Live Demo Code
+Charts Module for Production Patent Analysis Visualizations
+Integrated with production config, processors, and data access layers
 
 This module provides comprehensive chart creation capabilities for patent intelligence
-with interactive Plotly visualizations and professional styling.
+with interactive Plotly visualizations, professional styling, and seamless integration
+with the production-ready patent analysis platform.
 """
 
 import pandas as pd
@@ -11,189 +12,263 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 import logging
 from datetime import datetime
+from pathlib import Path
+
+# Production imports
+from config import ConfigurationManager
+from data_access.country_mapper import PatentCountryMapper
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ChartCreator:
+class ProductionChartCreator:
     """
-    Professional chart creation for patent intelligence with consistent styling.
+    Production-ready chart creation for patent intelligence with configuration-driven styling.
+    Integrates seamlessly with the production patent analysis platform.
     """
     
-    # Professional color schemes
-    COLOR_SCHEMES = {
-        'primary': px.colors.qualitative.Set3,
-        'sequential': px.colors.sequential.Viridis,
-        'diverging': px.colors.diverging.RdYlBu_r,
-        'ree_specific': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
-                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
-        'geographic': px.colors.sequential.Blues,
-        'technology': px.colors.qualitative.Pastel1
-    }
-    
-    # Chart styling defaults
-    DEFAULT_LAYOUT = {
-        'height': 700,
-        'font': {'family': 'Arial, sans-serif', 'size': 12},
-        'title': {'font': {'size': 18, 'family': 'Arial Black'}},
-        'margin': {'l': 80, 'r': 80, 't': 100, 'b': 80},
-        'plot_bgcolor': 'white',
-        'paper_bgcolor': 'white'
-    }
-    
-    def __init__(self, theme: str = 'professional'):
+    def __init__(self, config_manager: ConfigurationManager = None, theme: str = None):
         """
-        Initialize chart creator with styling theme.
+        Initialize production chart creator with configuration management.
         
         Args:
-            theme: Styling theme ('professional', 'colorful', 'minimal')
+            config_manager: Configuration manager instance
+            theme: Override theme from configuration
         """
-        self.theme = theme
+        self.config = config_manager or ConfigurationManager()
+        self.theme = theme or self.config.get_visualization_config('general.themes.default_theme')
         self.chart_counter = 0
+        self.country_mapper = PatentCountryMapper()
+        
+        # Load configuration-driven settings
+        self._load_styling_config()
     
-    def create_bubble_scatter(self, data: pd.DataFrame,
-                            x_col: str, y_col: str, size_col: str,
-                            color_col: Optional[str] = None,
-                            text_col: Optional[str] = None,
-                            title: str = "Bubble Scatter Analysis",
-                            x_title: str = None, y_title: str = None,
-                            size_max: int = 50,
-                            color_scheme: str = 'primary') -> go.Figure:
+    def _load_styling_config(self):
+        """Load styling configuration from YAML files."""
+        viz_config = self.config.get_visualization_config()
+        
+        # Color schemes from configuration
+        self.color_schemes = {
+            'primary': viz_config.get('charts', {}).get('color_schemes', {}).get('patent_analysis', 
+                                    ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']),
+            'qualitative': viz_config.get('charts', {}).get('color_schemes', {}).get('qualitative_professional',
+                                         ['#2E8B57', '#4169E1', '#FF6347', '#32CD32', '#FF69B4']),
+            'sequential': viz_config.get('charts', {}).get('color_schemes', {}).get('sequential', {}),
+            'diverging': viz_config.get('charts', {}).get('color_schemes', {}).get('diverging', {})
+        }
+        
+        # Layout configuration
+        layout_config = viz_config.get('charts', {}).get('layout', {})
+        self.default_layout = {
+            'height': layout_config.get('default_height', 600),
+            'width': layout_config.get('default_width', 800),
+            'font': {
+                'family': layout_config.get('font_family', 'Arial, sans-serif'),
+                'size': layout_config.get('font_size', 12)
+            },
+            'title': {
+                'font': {
+                    'size': layout_config.get('title_font_size', 18),
+                    'family': layout_config.get('title_font_family', 'Arial Black')
+                }
+            },
+            'margin': {
+                'l': layout_config.get('margin_left', 80),
+                'r': layout_config.get('margin_right', 80),
+                't': layout_config.get('margin_top', 100),
+                'b': layout_config.get('margin_bottom', 80)
+            },
+            'plot_bgcolor': layout_config.get('plot_bgcolor', 'white'),
+            'paper_bgcolor': layout_config.get('paper_bgcolor', '#f8f9fa')
+        }
+        
+        # Chart-specific configurations
+        self.scatter_config = viz_config.get('charts', {}).get('scatter_plots', {})
+        self.bar_config = viz_config.get('charts', {}).get('bar_charts', {})
+        self.pie_config = viz_config.get('charts', {}).get('pie_charts', {})
+        self.timeseries_config = viz_config.get('charts', {}).get('time_series', {})
+        self.heatmap_config = viz_config.get('charts', {}).get('heatmaps', {})
+    
+    def _create_empty_figure(self, message: str = "No data available") -> go.Figure:
+        """Create empty figure with informative message."""
+        fig = go.Figure()
+        fig.add_annotation(
+            text=message,
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color='gray')
+        )
+        fig.update_layout(**self.default_layout)
+        return fig
+    
+    def create_applicant_bubble_scatter(self, processor_results: Dict[str, Any],
+                                      title: str = "Patent Leaders Market Analysis",
+                                      max_points: int = 20) -> go.Figure:
         """
-        Create professional bubble scatter plot for market intelligence.
+        Create professional applicant bubble scatter plot using processor results.
         
         Args:
-            data: DataFrame with chart data
-            x_col: Column for x-axis values
-            y_col: Column for y-axis values  
-            size_col: Column for bubble sizes
-            color_col: Column for color mapping (optional)
-            text_col: Column for text labels (optional)
+            processor_results: Results from ApplicantProcessor.export_results_for_visualization()
             title: Chart title
-            x_title: X-axis title
-            y_title: Y-axis title
-            size_max: Maximum bubble size
-            color_scheme: Color scheme to use
+            max_points: Maximum number of applicants to display
             
         Returns:
-            Plotly figure object
+            Plotly figure object with applicant analysis
         """
-        logger.info(f"📊 Creating bubble scatter: {title}")
+        logger.debug(f"📊 Creating applicant bubble scatter: {title}")
         
-        # Data preparation
-        chart_data = data.copy()
+        # Extract data from processor results
+        if 'applicant_ranking' not in processor_results:
+            logger.warning("No applicant ranking data found in processor results")
+            return self._create_empty_figure("No applicant data available")
+        
+        data = processor_results['applicant_ranking'].head(max_points).copy()
+        
+        # Get bubble scatter configuration
+        bubble_config = self.scatter_config.get('bubble_scatter', {})
         
         # Handle text positioning - avoid Plotly range() error
-        if text_col and y_col in chart_data.columns:
-            # Create y-positions for text labels
-            chart_data['text_y_pos'] = list(range(len(chart_data)))
+        data['text_y_pos'] = list(range(len(data)))
         
         # Create figure
         fig = go.Figure()
         
-        # Color mapping
-        if color_col and color_col in chart_data.columns:
-            colors = chart_data[color_col]
-            colorscale = self.COLOR_SCHEMES.get(color_scheme, self.COLOR_SCHEMES['primary'])
-        else:
-            colors = self.COLOR_SCHEMES['ree_specific'][0]
-            colorscale = None
+        # Use configured color scheme
+        colors = data.get('Market_Share_Pct', data.iloc[:, 1])
+        colorscale = self.color_schemes['sequential'].get('market_share', 'Reds')
         
-        # Add scatter trace
+        # Add scatter trace with production configuration
+        size_col = 'Patent_Families' if 'Patent_Families' in data.columns else data.columns[1]
+        patent_families = data[size_col]
+        
         fig.add_trace(go.Scatter(
-            x=chart_data[x_col],
-            y=chart_data.get('text_y_pos', chart_data[y_col]) if text_col else chart_data[y_col],
-            mode='markers+text' if text_col else 'markers',
+            x=patent_families,
+            y=data['text_y_pos'],
+            mode='markers+text',
             marker=dict(
-                size=chart_data[size_col],
+                size=patent_families,
                 sizemode='diameter',
-                sizeref=2. * max(chart_data[size_col]) / (size_max**2),
-                sizemin=4,
+                sizeref=bubble_config.get('size_reference_factor', 2.0) * max(patent_families) / (bubble_config.get('max_bubble_size', 50)**2),
+                sizemin=bubble_config.get('min_bubble_size', 8),
                 color=colors,
-                colorscale=colorscale if colorscale else None,
-                showscale=True if colorscale else False,
-                opacity=0.7,
-                line=dict(width=2, color='rgba(255,255,255,0.8)')
+                colorscale=colorscale,
+                showscale=True,
+                opacity=bubble_config.get('opacity', 0.7),
+                line=dict(
+                    width=bubble_config.get('line_width', 2), 
+                    color=bubble_config.get('line_color', 'rgba(255,255,255,0.8)')
+                ),
+                colorbar=dict(title="Market Share %", x=1.02)
             ),
-            text=chart_data[text_col].str[:25] if text_col else None,
-            textposition='middle right' if text_col else None,
-            textfont=dict(size=10, color='black'),
+            text=data.iloc[:, 0].str[:25],  # Applicant names
+            textposition=bubble_config.get('text_position', 'middle right'),
+            textfont=dict(
+                size=bubble_config.get('text_font_size', 10), 
+                color='black'
+            ),
             hovertemplate=(
-                f"<b>%{{text}}</b><br>" if text_col else "" +
-                f"{x_title or x_col}: %{{x}}<br>" +
-                f"{y_title or y_col}: %{{y}}<br>" +
-                f"Size: %{{marker.size}}<br>" +
-                (f"Color: %{{marker.color}}<br>" if color_col else "") +
+                "<b>%{text}</b><br>" +
+                "Patent Families: %{x}<br>" +
+                "Market Position: %{y}<br>" +
+                "Market Share: %{marker.color:.1f}%<br>" +
                 "<extra></extra>"
             ),
-            name='Data Points'
+            name='Patent Leaders'
         ))
         
-        # Layout styling
+        # Layout styling with configuration
+        branding = self.config.get('visualization', 'general.branding', {})
+        title_prefix = branding.get('title_prefix', '🎯 ')
+        
         fig.update_layout(
-            title=f"🎯 {title}",
-            xaxis_title=x_title or x_col.replace('_', ' ').title(),
-            yaxis_title=y_title or y_col.replace('_', ' ').title(),
-            **self.DEFAULT_LAYOUT
+            title=f"{title_prefix}{title}",
+            xaxis_title="Patent Families",
+            yaxis_title="Market Position Ranking",
+            annotations=[
+                dict(
+                    text=branding.get('watermark', 'Generated with Claude Code'),
+                    xref="paper", yref="paper",
+                    x=1.0, y=0.0, xanchor='right', yanchor='bottom',
+                    showarrow=False, font=dict(size=8, color='gray')
+                )
+            ],
+            **self.default_layout
         )
         
         return fig
     
-    def create_ranking_bar(self, data: pd.DataFrame,
-                          category_col: str, value_col: str,
-                          orientation: str = 'h',
-                          title: str = "Ranking Analysis",
-                          top_n: int = 20,
-                          color_scheme: str = 'sequential') -> go.Figure:
+    def create_geographic_bar_ranking(self, processor_results: Dict[str, Any],
+                                     title: str = "Geographic Patent Distribution",
+                                     top_n: int = 15,
+                                     orientation: str = 'h') -> go.Figure:
         """
-        Create professional ranking bar chart.
+        Create professional geographic ranking bar chart using processor results.
         
         Args:
-            data: DataFrame with ranking data
-            category_col: Column with categories to rank
-            value_col: Column with values for ranking
-            orientation: Chart orientation ('h' for horizontal, 'v' for vertical)
+            processor_results: Results from GeographicProcessor.export_results_for_visualization()
             title: Chart title
-            top_n: Number of top items to show
-            color_scheme: Color scheme to use
+            top_n: Number of top countries to show
+            orientation: Chart orientation ('h' for horizontal, 'v' for vertical)
             
         Returns:
-            Plotly figure object
+            Plotly figure object with geographic analysis
         """
-        logger.info(f"📊 Creating ranking bar chart: {title}")
+        logger.debug(f"📊 Creating geographic bar ranking: {title}")
         
-        # Data preparation
+        # Extract data from processor results
+        if 'country_summary' not in processor_results:
+            logger.warning("No country summary data found in processor results")
+            return self._create_empty_figure("No geographic data available")
+        
+        data = processor_results['country_summary']
+        
+        # Use country mapper for proper country names
+        if 'country_code' in data.columns:
+            data = self.country_mapper.enhance_country_data(data, 'country_code')
+        
+        # Prepare chart data
+        value_col = 'unique_families' if 'unique_families' in data.columns else data.columns[-1]
+        country_col = 'country_name' if 'country_name' in data.columns else data.columns[0]
+        
         chart_data = data.sort_values(value_col, ascending=False).head(top_n).copy()
         
         if orientation == 'h':
             # Reverse order for horizontal bars (top at top)
             chart_data = chart_data.iloc[::-1]
         
-        # Color mapping
-        colors = self.COLOR_SCHEMES.get(color_scheme, self.COLOR_SCHEMES['sequential'])
+        # Get bar chart configuration
+        bar_config = self.bar_config.get('horizontal_bars' if orientation == 'h' else 'vertical_bars', {})
+        
+        # Color mapping from configuration
+        colorscale = self.color_schemes['sequential'].get('patent_activity', 'Blues')
         color_values = chart_data[value_col]
         
-        # Create figure
+        # Create figure with configuration
         fig = go.Figure()
         
         if orientation == 'h':
             fig.add_trace(go.Bar(
                 x=chart_data[value_col],
-                y=chart_data[category_col],
-                orientation='h',
+                y=chart_data[country_col],
+                orientation=bar_config.get('orientation', 'h'),
                 marker=dict(
                     color=color_values,
-                    colorscale=colors,
+                    colorscale=colorscale,
                     showscale=True,
+                    opacity=bar_config.get('bar_opacity', 0.8),
+                    line=dict(
+                        width=bar_config.get('border_width', 1),
+                        color=bar_config.get('border_color', 'white')
+                    ),
                     colorbar=dict(title=value_col.replace('_', ' ').title())
                 ),
-                text=chart_data[value_col],
-                textposition='outside',
-                texttemplate='%{text}',
+                text=chart_data[value_col] if bar_config.get('show_values', True) else None,
+                textposition=bar_config.get('text_position', 'outside'),
+                texttemplate=bar_config.get('text_template', '%{x}'),
                 hovertemplate=(
                     "<b>%{y}</b><br>" +
                     f"{value_col.replace('_', ' ').title()}: %{{x}}<br>" +
@@ -202,17 +277,18 @@ class ChartCreator:
             ))
         else:
             fig.add_trace(go.Bar(
-                x=chart_data[category_col],
+                x=chart_data[country_col],
                 y=chart_data[value_col],
                 marker=dict(
                     color=color_values,
-                    colorscale=colors,
+                    colorscale=colorscale,
                     showscale=True,
+                    opacity=bar_config.get('bar_opacity', 0.8),
                     colorbar=dict(title=value_col.replace('_', ' ').title())
                 ),
-                text=chart_data[value_col],
-                textposition='outside',
-                texttemplate='%{text}',
+                text=chart_data[value_col] if bar_config.get('show_values', True) else None,
+                textposition=bar_config.get('text_position', 'outside'),
+                texttemplate=bar_config.get('text_template', '%{y}'),
                 hovertemplate=(
                     "<b>%{x}</b><br>" +
                     f"{value_col.replace('_', ' ').title()}: %{{y}}<br>" +
@@ -220,13 +296,24 @@ class ChartCreator:
                 )
             ))
         
-        # Layout styling
+        # Layout styling with configuration
+        branding = self.config.get('visualization', 'general.branding', {})
+        title_prefix = branding.get('title_prefix', '🎯 ')
+        
         fig.update_layout(
-            title=f"🏆 {title}",
-            xaxis_title=value_col.replace('_', ' ').title() if orientation == 'h' else category_col.replace('_', ' ').title(),
-            yaxis_title=category_col.replace('_', ' ').title() if orientation == 'h' else value_col.replace('_', ' ').title(),
+            title=f"{title_prefix}{title}",
+            xaxis_title=value_col.replace('_', ' ').title() if orientation == 'h' else "Countries",
+            yaxis_title="Countries" if orientation == 'h' else value_col.replace('_', ' ').title(),
             showlegend=False,
-            **self.DEFAULT_LAYOUT
+            annotations=[
+                dict(
+                    text=branding.get('watermark', 'Generated with Claude Code'),
+                    xref="paper", yref="paper",
+                    x=1.0, y=0.0, xanchor='right', yanchor='bottom',
+                    showarrow=False, font=dict(size=8, color='gray')
+                )
+            ],
+            **self.default_layout
         )
         
         return fig
@@ -250,7 +337,7 @@ class ChartCreator:
         Returns:
             Plotly figure object
         """
-        logger.info(f"📊 Creating market share pie: {title}")
+        logger.debug(f"📊 Creating market share pie: {title}")
         
         # Data preparation
         sorted_data = data.sort_values(value_col, ascending=False)
@@ -299,81 +386,79 @@ class ChartCreator:
                 xanchor="left",
                 x=1.05
             ),
-            **self.DEFAULT_LAYOUT
+            **self.default_layout
         )
         
         return fig
     
-    def create_time_series(self, data: pd.DataFrame,
-                          time_col: str, value_col: str,
-                          category_col: Optional[str] = None,
-                          title: str = "Time Series Analysis",
-                          trend_line: bool = True,
-                          color_scheme: str = 'primary') -> go.Figure:
+    def create_temporal_trends_chart(self, processor_results: Dict[str, Any],
+                                    title: str = "Patent Filing Trends Over Time",
+                                    show_trend_line: bool = True,
+                                    show_market_events: bool = True) -> go.Figure:
         """
-        Create professional time series chart with trend analysis.
+        Create professional temporal trends chart using processor results.
         
         Args:
-            data: DataFrame with time series data
-            time_col: Column with time/date values
-            value_col: Column with values to plot
-            category_col: Column for multiple series (optional)
+            processor_results: Results from any processor with temporal analysis
             title: Chart title
-            trend_line: Whether to add trend line
-            color_scheme: Color scheme to use
+            show_trend_line: Whether to add trend line
+            show_market_events: Whether to add market event annotations
             
         Returns:
-            Plotly figure object
+            Plotly figure object with temporal analysis
         """
-        logger.info(f"📊 Creating time series: {title}")
+        logger.debug(f"📊 Creating temporal trends chart: {title}")
+        
+        # Extract temporal data from processor results
+        temporal_data = None
+        if 'temporal_summary' in processor_results:
+            temporal_data = processor_results['temporal_summary']
+        elif 'annual_activity' in processor_results:
+            temporal_data = processor_results['annual_activity']
+        
+        if temporal_data is None or len(temporal_data) == 0:
+            logger.warning("No temporal data found in processor results")
+            return self._create_empty_figure("No temporal data available")
         
         # Data preparation
-        chart_data = data.copy()
-        chart_data[time_col] = pd.to_datetime(chart_data[time_col])
+        chart_data = temporal_data.copy()
+        time_col = 'filing_year' if 'filing_year' in chart_data.columns else chart_data.columns[0]
+        value_col = 'patent_count' if 'patent_count' in chart_data.columns else chart_data.columns[1]
+        
+        chart_data[time_col] = pd.to_datetime(chart_data[time_col], format='%Y')
         chart_data = chart_data.sort_values(time_col)
         
         # Create figure
         fig = go.Figure()
         
-        colors = self.COLOR_SCHEMES.get(color_scheme, self.COLOR_SCHEMES['primary'])
+        # Get time series configuration
+        line_config = self.timeseries_config.get('line_charts', {})
+        colors = self.color_schemes['primary']
         
-        if category_col and category_col in chart_data.columns:
-            # Multiple series
-            for i, category in enumerate(chart_data[category_col].unique()):
-                category_data = chart_data[chart_data[category_col] == category]
-                
-                fig.add_trace(go.Scatter(
-                    x=category_data[time_col],
-                    y=category_data[value_col],
-                    mode='lines+markers',
-                    name=str(category)[:30],
-                    line=dict(color=colors[i % len(colors)], width=3),
-                    marker=dict(size=6),
-                    hovertemplate=(
-                        f"<b>{category}</b><br>" +
-                        "Date: %{x}<br>" +
-                        f"{value_col.replace('_', ' ').title()}: %{{y}}<br>" +
-                        "<extra></extra>"
-                    )
-                ))
-        else:
-            # Single series
-            fig.add_trace(go.Scatter(
-                x=chart_data[time_col],
-                y=chart_data[value_col],
-                mode='lines+markers',
-                name=value_col.replace('_', ' ').title(),
-                line=dict(color=colors[0], width=4),
-                marker=dict(size=8, color=colors[1]),
-                hovertemplate=(
-                    "Date: %{x}<br>" +
-                    f"{value_col.replace('_', ' ').title()}: %{{y}}<br>" +
-                    "<extra></extra>"
-                )
-            ))
-            
-            # Add trend line if requested
-            if trend_line and len(chart_data) > 2:
+        # Single series temporal chart
+        fig.add_trace(go.Scatter(
+            x=chart_data[time_col],
+            y=chart_data[value_col],
+            mode=line_config.get('mode', 'lines+markers'),
+            name=value_col.replace('_', ' ').title(),
+            line=dict(
+                color=colors[0], 
+                width=line_config.get('line_width', 3)
+            ),
+            marker=dict(
+                size=line_config.get('marker_size', 8), 
+                color=colors[1]
+            ),
+            hovertemplate=(
+                "Year: %{x|%Y}<br>" +
+                f"{value_col.replace('_', ' ').title()}: %{{y}}<br>" +
+                "<extra></extra>"
+            )
+        ))
+        
+        # Add trend line if requested
+        if show_trend_line and line_config.get('show_trend', True) and len(chart_data) > 2:
+            try:
                 from scipy import stats
                 x_numeric = pd.to_numeric(chart_data[time_col])
                 slope, intercept, r_value, _, _ = stats.linregress(x_numeric, chart_data[value_col])
@@ -385,17 +470,215 @@ class ChartCreator:
                     y=trend_y,
                     mode='lines',
                     name=f'Trend (R²={r_value**2:.3f})',
-                    line=dict(dash='dash', color='red', width=2),
+                    line=dict(
+                        dash='dash', 
+                        color='red', 
+                        width=2
+                    ),
                     hovertemplate="Trend Line<extra></extra>"
                 ))
+            except ImportError:
+                logger.warning("Scipy not available for trend line calculation")
         
-        # Layout styling
+        # Add market events annotations if requested
+        if show_market_events:
+            market_events = {
+                2010: "Technology Crisis", 2011: "Market Peak", 2014: "Stabilization",
+                2017: "Innovation Boom", 2020: "COVID Impact", 2022: "Supply Chain Issues"
+            }
+            
+            for year, event in market_events.items():
+                if year in chart_data[time_col].dt.year.values:
+                    year_data = chart_data[chart_data[time_col].dt.year == year]
+                    if len(year_data) > 0:
+                        fig.add_annotation(
+                            x=year_data[time_col].iloc[0],
+                            y=year_data[value_col].iloc[0],
+                            text=event,
+                            showarrow=True,
+                            arrowhead=2,
+                            arrowcolor="gray",
+                            font=dict(size=9, color="gray")
+                        )
+        
+        # Layout styling with configuration
+        branding = self.config.get('visualization', 'general.branding', {})
+        title_prefix = branding.get('title_prefix', '🎯 ')
+        
         fig.update_layout(
-            title=f"📈 {title}",
-            xaxis_title="Time Period",
+            title=f"{title_prefix}{title}",
+            xaxis_title="Year",
             yaxis_title=value_col.replace('_', ' ').title(),
             hovermode='x unified',
-            **self.DEFAULT_LAYOUT
+            annotations=fig.layout.annotations + (
+                dict(
+                    text=branding.get('watermark', 'Generated with Claude Code'),
+                    xref="paper", yref="paper",
+                    x=1.0, y=0.0, xanchor='right', yanchor='bottom',
+                    showarrow=False, font=dict(size=8, color='gray')
+                ),
+            ),
+            **self.default_layout
+        )
+        
+        return fig
+    
+    def create_technology_distribution_pie(self, processor_results: Dict[str, Any],
+                                         title: str = "Technology Distribution Analysis",
+                                         max_categories: int = 10) -> go.Figure:
+        """
+        Create professional technology distribution pie chart using processor results.
+        
+        Args:
+            processor_results: Results from ClassificationProcessor.export_results_for_visualization()
+            title: Chart title
+            max_categories: Maximum number of categories to show individually
+            
+        Returns:
+            Plotly figure object with technology distribution
+        """
+        logger.debug(f"📊 Creating technology distribution pie: {title}")
+        
+        # Extract data from processor results
+        if 'cpc_distribution' not in processor_results:
+            logger.warning("No CPC distribution data found in processor results")
+            return self._create_empty_figure("No technology distribution data available")
+        
+        data = processor_results['cpc_distribution']
+        
+        # Get pie chart configuration
+        pie_config = self.pie_config.get('market_share', {})
+        
+        # Prepare data for pie chart
+        sorted_data = data.sort_values(data.columns[1], ascending=False)
+        
+        if pie_config.get('max_categories', 10) and len(sorted_data) > max_categories:
+            top_data = sorted_data.head(max_categories)
+            others_value = sorted_data.tail(len(sorted_data) - max_categories).iloc[:, 1].sum()
+            
+            # Create pie data with top N + others
+            pie_values = list(top_data.iloc[:, 1]) + [others_value]
+            pie_labels = list(top_data.iloc[:, 0].str[:25]) + ['Others']
+        else:
+            pie_values = list(sorted_data.iloc[:, 1])
+            pie_labels = list(sorted_data.iloc[:, 0].str[:25])
+        
+        # Create figure
+        fig = go.Figure()
+        
+        fig.add_trace(go.Pie(
+            values=pie_values,
+            labels=pie_labels,
+            hole=pie_config.get('hole_size', 0.3),
+            textinfo=pie_config.get('text_info', 'label+percent'),
+            textposition=pie_config.get('text_position', 'auto'),
+            textfont=dict(size=11),
+            marker=dict(
+                colors=self.color_schemes['primary'][:len(pie_values)],
+                line=dict(color='white', width=2)
+            ),
+            hovertemplate=(
+                "<b>%{label}</b><br>" +
+                "Count: %{value}<br>" +
+                "Percentage: %{percent}<br>" +
+                "<extra></extra>"
+            )
+        ))
+        
+        # Layout styling with configuration
+        branding = self.config.get('visualization', 'general.branding', {})
+        title_prefix = branding.get('title_prefix', '🎯 ')
+        
+        fig.update_layout(
+            title=f"{title_prefix}{title}",
+            showlegend=pie_config.get('show_legend', True),
+            legend=dict(
+                orientation="v",
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=1.05
+            ),
+            annotations=[
+                dict(
+                    text=branding.get('watermark', 'Generated with Claude Code'),
+                    xref="paper", yref="paper",
+                    x=1.0, y=0.0, xanchor='right', yanchor='bottom',
+                    showarrow=False, font=dict(size=8, color='gray')
+                )
+            ],
+            **self.default_layout
+        )
+        
+        return fig
+    
+    def create_citation_network_heatmap(self, processor_results: Dict[str, Any],
+                                      title: str = "Citation Network Analysis",
+                                      max_entities: int = 20) -> go.Figure:
+        """
+        Create professional citation network heatmap using processor results.
+        
+        Args:
+            processor_results: Results from CitationProcessor.export_results_for_visualization()
+            title: Chart title
+            max_entities: Maximum number of entities to include in heatmap
+            
+        Returns:
+            Plotly figure object with citation network analysis
+        """
+        logger.debug(f"📊 Creating citation network heatmap: {title}")
+        
+        # Extract data from processor results
+        if 'citation_matrix' not in processor_results:
+            logger.warning("No citation matrix data found in processor results")
+            return self._create_empty_figure("No citation network data available")
+        
+        citation_matrix = processor_results['citation_matrix']
+        
+        # Limit size for readability
+        if len(citation_matrix) > max_entities:
+            citation_matrix = citation_matrix.iloc[:max_entities, :max_entities]
+        
+        # Get heatmap configuration
+        heatmap_config = self.heatmap_config.get('correlation', {})
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Create heatmap
+        fig.add_trace(go.Heatmap(
+            z=citation_matrix.values,
+            x=citation_matrix.columns,
+            y=citation_matrix.index,
+            colorscale=heatmap_config.get('color_scale', 'Blues'),
+            text=citation_matrix.values if heatmap_config.get('show_annotations', True) else None,
+            texttemplate='%{text}' if heatmap_config.get('show_annotations', True) else None,
+            textfont=dict(size=heatmap_config.get('annotation_font_size', 10)),
+            hovertemplate=(
+                "Citing: %{y}<br>" +
+                "Cited: %{x}<br>" +
+                "Citations: %{z}<br>" +
+                "<extra></extra>"
+            )
+        ))
+        
+        # Layout styling with configuration
+        branding = self.config.get('visualization', 'general.branding', {})
+        title_prefix = branding.get('title_prefix', '🎯 ')
+        
+        fig.update_layout(
+            title=f"{title_prefix}{title}",
+            xaxis_title="Cited Entities",
+            yaxis_title="Citing Entities",
+            annotations=[
+                dict(
+                    text=branding.get('watermark', 'Generated with Claude Code'),
+                    xref="paper", yref="paper",
+                    x=1.0, y=0.0, xanchor='right', yanchor='bottom',
+                    showarrow=False, font=dict(size=8, color='gray')
+                )
+            ],
+            **self.default_layout
         )
         
         return fig
@@ -416,7 +699,7 @@ class ChartCreator:
         Returns:
             Plotly figure object
         """
-        logger.info(f"📊 Creating correlation heatmap: {title}")
+        logger.debug(f"📊 Creating correlation heatmap: {title}")
         
         # Data preparation
         if columns:
@@ -452,7 +735,7 @@ class ChartCreator:
             title=f"🔗 {title}",
             xaxis_title="Variables",
             yaxis_title="Variables",
-            **self.DEFAULT_LAYOUT
+            **self.default_layout
         )
         
         return fig
@@ -477,7 +760,7 @@ class ChartCreator:
         Returns:
             Plotly figure object
         """
-        logger.info(f"📊 Creating distribution histogram: {title}")
+        logger.debug(f"📊 Creating distribution histogram: {title}")
         
         # Create figure
         fig = go.Figure()
@@ -534,85 +817,143 @@ class ChartCreator:
             xaxis_title=value_col.replace('_', ' ').title(),
             yaxis_title="Frequency",
             barmode='overlay',
-            **self.DEFAULT_LAYOUT
+            **self.default_layout
         )
         
         return fig
 
-def create_chart_creator(theme: str = 'professional') -> ChartCreator:
+def create_production_chart_creator(config_manager: ConfigurationManager = None, theme: str = None) -> ProductionChartCreator:
     """
-    Factory function to create configured chart creator.
+    Factory function to create configured production chart creator.
+    
+    Args:
+        config_manager: Configuration manager instance
+        theme: Styling theme override
+        
+    Returns:
+        Configured ProductionChartCreator instance
+    """
+    return ProductionChartCreator(config_manager, theme)
+
+def create_chart_creator(theme: str = 'professional') -> ProductionChartCreator:
+    """
+    Legacy factory function for backward compatibility.
     
     Args:
         theme: Styling theme for charts
         
     Returns:
-        Configured ChartCreator instance
+        Configured ProductionChartCreator instance
     """
-    return ChartCreator(theme)
+    return create_production_chart_creator(theme=theme)
 
-# Convenience functions for quick chart creation
+# Production convenience functions for processor integration
+def create_applicant_chart(processor_results: Dict[str, Any], **kwargs) -> go.Figure:
+    """Create applicant analysis chart from processor results."""
+    creator = create_production_chart_creator()
+    return creator.create_applicant_bubble_scatter(processor_results, **kwargs)
+
+def create_geographic_chart(processor_results: Dict[str, Any], **kwargs) -> go.Figure:
+    """Create geographic analysis chart from processor results."""
+    creator = create_production_chart_creator()
+    return creator.create_geographic_bar_ranking(processor_results, **kwargs)
+
+def create_temporal_chart(processor_results: Dict[str, Any], **kwargs) -> go.Figure:
+    """Create temporal analysis chart from processor results."""
+    creator = create_production_chart_creator()
+    return creator.create_temporal_trends_chart(processor_results, **kwargs)
+
+def create_technology_chart(processor_results: Dict[str, Any], **kwargs) -> go.Figure:
+    """Create technology distribution chart from processor results."""
+    creator = create_production_chart_creator()
+    return creator.create_technology_distribution_pie(processor_results, **kwargs)
+
+def create_citation_chart(processor_results: Dict[str, Any], **kwargs) -> go.Figure:
+    """Create citation network chart from processor results."""
+    creator = create_production_chart_creator()
+    return creator.create_citation_network_heatmap(processor_results, **kwargs)
+
+# Legacy convenience functions for backward compatibility
 def quick_scatter(data: pd.DataFrame, x: str, y: str, size: str, **kwargs) -> go.Figure:
-    """Quick bubble scatter chart creation."""
+    """Legacy function - use processor-based functions instead."""
+    logger.warning("quick_scatter is deprecated - use processor-based chart functions")
     creator = create_chart_creator()
-    return creator.create_bubble_scatter(data, x, y, size, **kwargs)
+    return creator.create_applicant_bubble_scatter({'applicant_ranking': data}, **kwargs)
 
 def quick_bar(data: pd.DataFrame, category: str, value: str, **kwargs) -> go.Figure:
-    """Quick ranking bar chart creation."""
+    """Legacy function - use processor-based functions instead."""
+    logger.warning("quick_bar is deprecated - use processor-based chart functions")
     creator = create_chart_creator()
-    return creator.create_ranking_bar(data, category, value, **kwargs)
+    return creator.create_geographic_bar_ranking({'country_summary': data}, **kwargs)
 
 def quick_pie(data: pd.DataFrame, category: str, value: str, **kwargs) -> go.Figure:
-    """Quick market share pie chart creation."""
+    """Legacy function - use processor-based functions instead."""
+    logger.warning("quick_pie is deprecated - use processor-based chart functions")
     creator = create_chart_creator()
-    return creator.create_market_share_pie(data, category, value, **kwargs)
+    return creator.create_technology_distribution_pie({'cpc_distribution': data}, **kwargs)
 
 def quick_timeseries(data: pd.DataFrame, time: str, value: str, **kwargs) -> go.Figure:
-    """Quick time series chart creation."""
+    """Legacy function - use processor-based functions instead."""
+    logger.warning("quick_timeseries is deprecated - use processor-based chart functions")
     creator = create_chart_creator()
-    return creator.create_time_series(data, time, value, **kwargs)
+    return creator.create_temporal_trends_chart({'temporal_summary': data}, **kwargs)
 
-# Example usage and demo functions
-def demo_chart_creation():
-    """Demonstrate chart creation capabilities."""
-    logger.info("🚀 Chart Creation Demo")
+# Production integration example
+def demo_production_chart_creation():
+    """Demonstrate production chart creation with processor integration."""
+    logger.debug("🚀 Production Chart Creation Demo")
     
-    # Create sample data
-    np.random.seed(42)
-    
-    sample_data = pd.DataFrame({
-        'applicant': [f'Company_{i}' for i in range(1, 21)],
-        'patent_families': np.random.randint(5, 100, 20),
-        'market_share': np.random.uniform(1, 15, 20),
-        'filing_year': np.random.randint(2010, 2023, 20),
-        'technology_area': np.random.choice(['Materials', 'Electronics', 'Energy'], 20)
-    })
-    
-    # Create charts
-    creator = create_chart_creator()
-    
-    # Bubble scatter
-    bubble_fig = creator.create_bubble_scatter(
-        sample_data, 'patent_families', 'market_share', 'patent_families',
-        color_col='market_share', text_col='applicant',
-        title="Patent Leaders Market Analysis"
-    )
-    
-    # Ranking bar
-    bar_fig = creator.create_ranking_bar(
-        sample_data, 'applicant', 'patent_families',
-        title="Top Patent Applicants"
-    )
-    
-    # Market share pie
-    pie_fig = creator.create_market_share_pie(
-        sample_data, 'applicant', 'market_share',
-        title="Market Share Distribution"
-    )
-    
-    logger.info("✅ Demo charts created successfully")
-    
-    return bubble_fig, bar_fig, pie_fig
+    try:
+        # Initialize production components
+        config_manager = ConfigurationManager()
+        creator = create_production_chart_creator(config_manager)
+        
+        # Create sample processor results structure
+        np.random.seed(42)
+        sample_results = {
+            'applicant_ranking': pd.DataFrame({
+                'Applicant': [f'Company_{i}' for i in range(1, 11)],
+                'Patent_Families': np.random.randint(10, 100, 10),
+                'Market_Share_Pct': np.random.uniform(2, 20, 10)
+            }),
+            'country_summary': pd.DataFrame({
+                'country_name': ['China', 'United States', 'Japan', 'Germany', 'South Korea'],
+                'unique_families': np.random.randint(50, 500, 5)
+            }),
+            'temporal_summary': pd.DataFrame({
+                'filing_year': list(range(2010, 2024)),
+                'patent_count': np.random.randint(20, 150, 14)
+            }),
+            'cpc_distribution': pd.DataFrame({
+                'cpc_class': ['H01M', 'C22B', 'G06F', 'H01L', 'C09K'],
+                'patent_count': np.random.randint(50, 200, 5)
+            })
+        }
+        
+        # Create production charts
+        applicant_fig = creator.create_applicant_bubble_scatter(
+            sample_results, title="Patent Leaders Market Analysis"
+        )
+        
+        geographic_fig = creator.create_geographic_bar_ranking(
+            sample_results, title="Global Patent Distribution"
+        )
+        
+        temporal_fig = creator.create_temporal_trends_chart(
+            sample_results, title="Patent Filing Trends"
+        )
+        
+        technology_fig = creator.create_technology_distribution_pie(
+            sample_results, title="Technology Distribution"
+        )
+        
+        logger.debug("✅ Production demo charts created successfully")
+        
+        return applicant_fig, geographic_fig, temporal_fig, technology_fig
+        
+    except Exception as e:
+        logger.error(f"❌ Demo failed: {e}")
+        return None, None, None, None
 
 if __name__ == "__main__":
-    demo_chart_creation()
+    demo_production_chart_creation()

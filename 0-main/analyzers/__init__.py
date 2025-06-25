@@ -303,7 +303,7 @@ class IntegratedPatentIntelligence:
         """
         import pandas as pd
         
-        logger.info(f"🚀 Starting {analysis_scope} intelligence analysis...")
+        logger.debug(f"🚀 Starting {analysis_scope} intelligence analysis...")
         
         analysis_config = self._get_analysis_config(analysis_scope)
         results = run_comprehensive_intelligence_analysis(data_sources, analysis_config)
@@ -318,7 +318,7 @@ class IntegratedPatentIntelligence:
             'status': results['analysis_metadata']['completion_status']
         })
         
-        logger.info(f"✅ Intelligence analysis complete - ID: {analysis_id}")
+        logger.debug(f"✅ Intelligence analysis complete - ID: {analysis_id}")
         return results
     
     def _get_analysis_config(self, scope):

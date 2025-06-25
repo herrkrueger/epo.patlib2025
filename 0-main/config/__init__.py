@@ -36,7 +36,7 @@ def load_env_file():
                         if line and not line.startswith('#') and '=' in line:
                             key, value = line.split('=', 1)
                             os.environ[key] = value
-                logger.info(f"✅ Loaded environment variables from {env_file}")
+                logger.debug(f"✅ Loaded environment variables from {env_file}")
                 return True
         
         logger.warning("⚠️ No .env file found in expected locations")
@@ -90,7 +90,7 @@ class ConfigurationManager:
                     config_data = self._process_env_substitutions(config_data)
                     
                     self.configs[config_name] = config_data
-                    logger.info(f"✅ Loaded {config_name} configuration from {filename}")
+                    logger.debug(f"✅ Loaded {config_name} configuration from {filename}")
                     
                 except Exception as e:
                     logger.error(f"❌ Failed to load {config_name} configuration: {e}")
@@ -199,7 +199,7 @@ class ConfigurationManager:
         
         # Set the value
         current_data[keys[-1]] = value
-        logger.info(f"📝 Updated {config_type}.{key_path} = {value}")
+        logger.debug(f"📝 Updated {config_type}.{key_path} = {value}")
     
     def get_environment_specific_config(self, config_type: str, key_path: str = None, default: Any = None) -> Any:
         """
@@ -312,7 +312,7 @@ class ConfigurationManager:
         validation_results['overall'] = overall_valid
         
         if overall_valid:
-            logger.info("✅ All configurations validated successfully")
+            logger.debug("✅ All configurations validated successfully")
         else:
             logger.warning("⚠️ Some configuration validation issues found")
         
@@ -340,7 +340,7 @@ class ConfigurationManager:
             try:
                 with open(output_path, 'w') as f:
                     yaml.dump(effective_config, f, default_flow_style=False, indent=2)
-                logger.info(f"💾 Effective configuration exported to {output_path}")
+                logger.debug(f"💾 Effective configuration exported to {output_path}")
             except Exception as e:
                 logger.error(f"❌ Failed to export configuration: {e}")
         
@@ -348,7 +348,7 @@ class ConfigurationManager:
     
     def reload_configurations(self):
         """Reload all configuration files from disk."""
-        logger.info("🔄 Reloading configurations...")
+        logger.debug("🔄 Reloading configurations...")
         self.configs.clear()
         self._load_all_configs()
     
@@ -410,10 +410,10 @@ def validate_all_configurations() -> Dict[str, bool]:
 
 # Patent search configuration helpers
 def get_patent_search_config() -> Dict[str, Any]:
-    """Get patent search configuration (simplified structure)."""
+    """Get patent search configuration (updated structure to match YAML)."""
     return {
         'keywords': get_search_patterns_config('keywords', {}),
-        'classification_codes': {'cpc_codes': get_search_patterns_config('cpc_classifications.technology_areas', {})},
+        'cpc_classifications': {'technology_areas': get_search_patterns_config('cpc_classifications.technology_areas', {})},
         'date_ranges': get_search_patterns_config('global_settings.date_ranges', {}),
         'search_strategies': get_search_patterns_config('search_strategies', {}),
         'quality_thresholds': get_search_patterns_config('global_settings.quality_thresholds', {}),

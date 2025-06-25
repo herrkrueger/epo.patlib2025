@@ -41,15 +41,15 @@ def _safe_close_epo_client(client):
                         connection_record = getattr(session, '_connection_record', None)
                         if connection_record is not None:
                             client.close_session()
-                            logger.info("🔒 EPO PATSTAT client session closed safely")
+                            logger.debug("🔒 EPO PATSTAT client session closed safely")
                         else:
-                            logger.info("🔒 EPO PATSTAT client session already closed")
+                            logger.debug("🔒 EPO PATSTAT client session already closed")
                     except Exception:
-                        logger.info("🔒 EPO PATSTAT client session already closed (connection check failed)")
+                        logger.debug("🔒 EPO PATSTAT client session already closed (connection check failed)")
                 else:
-                    logger.info("🔒 EPO PATSTAT client session already closed")
+                    logger.debug("🔒 EPO PATSTAT client session already closed")
             else:
-                logger.info("🔒 EPO PATSTAT client session already closed")
+                logger.debug("🔒 EPO PATSTAT client session already closed")
         
         # Nullify internal references to prevent garbage collection issues
         for attr in ['_session', 'session', '_engine', 'engine']:
@@ -115,7 +115,7 @@ def _patch_epo_patstat_client():
         
         # Replace destructor
         EPOPatstatClient.__del__ = safe_del
-        logger.info("✅ EPO PatstatClient destructor patched for safe cleanup")
+        logger.debug("✅ EPO PatstatClient destructor patched for safe cleanup")
         
     except ImportError:
         # EPO library not available, no patching needed
@@ -180,7 +180,7 @@ class PatstatConnectionManager:
                 from sqlalchemy import func, and_, or_
                 from sqlalchemy.orm import sessionmaker, aliased
                 
-                logger.info("✅ PATSTAT libraries imported successfully")
+                logger.debug("✅ PATSTAT libraries imported successfully")
                 
                 # Store models and SQL functions
                 self.models = {
@@ -201,7 +201,7 @@ class PatstatConnectionManager:
                 self.sql_funcs = {'func': func, 'and_': and_, 'or_': or_}
                 
                 # Initialize PATSTAT client with connection state tracking
-                logger.info(f"Connecting to PATSTAT {self.environment} environment...")
+                logger.debug(f"Connecting to PATSTAT {self.environment} environment...")
                 
                 with self._lock:
                     self.patstat_client = EPOPatstatClient(env=self.environment)
@@ -214,9 +214,9 @@ class PatstatConnectionManager:
                     test_result = self.db_session.query(TLS201_APPLN.docdb_family_id).limit(1).first()
                     self.is_connected = True
                     
-                logger.info(f"✅ Connected to PATSTAT {self.environment} environment")
-                logger.info(f"Database engine: {self.db_session.bind}")
-                logger.info("✅ Table access test successful")
+                logger.debug(f"✅ Connected to PATSTAT {self.environment} environment")
+                logger.debug(f"Database engine: {self.db_session.bind}")
+                logger.debug("✅ Table access test successful")
                 
             else:
                 logger.warning("TIP environment not available")
@@ -269,7 +269,7 @@ class PatstatConnectionManager:
                         # Check if session is still valid before closing
                         if hasattr(self.db_session, 'close') and callable(self.db_session.close):
                             self.db_session.close()
-                            logger.info("🔒 Database session closed")
+                            logger.debug("🔒 Database session closed")
                     except Exception as e:
                         logger.warning(f"⚠️ Database session close warning: {e}")
                 
@@ -397,7 +397,7 @@ class PatstatClient:
             
             self.patstat_available = True
             self.patstat_connected = True
-            logger.info("✅ External BigQuery connection established")
+            logger.debug("✅ External BigQuery connection established")
             
         except Exception as e:
             logger.error(f"❌ Failed to establish external BigQuery connection: {e}")
@@ -426,7 +426,7 @@ class PatstatClient:
             # Use connection manager for cleanup
             if hasattr(self, 'connection_manager') and self.connection_manager is not None:
                 self.connection_manager.close()
-                logger.info("🔒 Connection manager closed")
+                logger.debug("🔒 Connection manager closed")
             
             # Clear references
             self.db = None
@@ -489,7 +489,7 @@ class PatentSearcher:
         
         try:
             self.search_config = get_patent_search_config()
-            logger.info("✅ Search configuration loaded successfully")
+            logger.debug("✅ Search configuration loaded successfully")
         except Exception as e:
             logger.error(f"❌ Failed to load search configuration: {e}")
             # Cannot proceed without configuration
@@ -500,20 +500,20 @@ class PatentSearcher:
         self.search_keywords = keywords_config.get('primary', []) + keywords_config.get('specific_elements', [])
         self.recovery_keywords = keywords_config.get('recovery', [])
         
-        # Extract classification codes
-        classification_config = self.search_config.get('classification_codes', {})
-        ipc_codes = classification_config.get('ipc_codes', {})
-        cpc_codes = classification_config.get('cpc_codes', {})
+        # Extract classification codes from the correct YAML structure
+        cpc_classifications = self.search_config.get('cpc_classifications', {})
+        technology_areas = cpc_classifications.get('technology_areas', {})
         
-        # Flatten all IPC codes
-        self.ipc_codes = []
-        for category_codes in ipc_codes.values():
-            self.ipc_codes.extend(category_codes)
-        
-        # Flatten all CPC codes
+        # Flatten all CPC codes from technology areas
         self.cpc_codes = []
-        for category_codes in cpc_codes.values():
-            self.cpc_codes.extend(category_codes)
+        for area_name, area_config in technology_areas.items():
+            if isinstance(area_config, dict) and 'codes' in area_config:
+                category_codes = area_config['codes']
+                if isinstance(category_codes, list):
+                    self.cpc_codes.extend(category_codes)
+        
+        # No IPC codes in current configuration (CPC-only approach)
+        self.ipc_codes = []
         
         # Load search strategies
         self.search_strategies = self.search_config.get('search_strategies', {})
@@ -539,7 +539,7 @@ class PatentSearcher:
             raise RuntimeError("PATSTAT connection is required for patent search")
         
         try:
-            logger.info("🔍 Executing Real PATSTAT Patent Search - FULL DATASET...")
+            logger.debug("🔍 Executing Real PATSTAT Patent Search - FULL DATASET...")
             
             # Use focused keywords for better performance
             if focused_search:
@@ -569,7 +569,7 @@ class PatentSearcher:
     def _search_abstracts(self, primary_keywords: List[str], secondary_keywords: List[str], 
                          start_date: str, end_date: str) -> List:
         """Search patent abstracts for configured keywords."""
-        logger.info("📝 Step 1: Abstract keyword search...")
+        logger.debug("📝 Step 1: Abstract keyword search...")
         
         TLS201_APPLN = self.models['TLS201_APPLN']
         TLS203_APPLN_ABSTR = self.models['TLS203_APPLN_ABSTR']
@@ -591,13 +591,13 @@ class PatentSearcher:
         )
         
         results = query.all()
-        logger.info(f"✅ Keywords search: {len(results):,} applications found")
+        logger.debug(f"✅ Keywords search: {len(results):,} applications found")
         return results
     
     def _search_titles(self, primary_keywords: List[str], secondary_keywords: List[str],
                       start_date: str, end_date: str) -> List:
         """Search patent titles for configured keywords.""" 
-        logger.info("📝 Step 2: Title keyword search...")
+        logger.debug("📝 Step 2: Title keyword search...")
         
         TLS201_APPLN = self.models['TLS201_APPLN']
         TLS202_APPLN_TITLE = self.models['TLS202_APPLN_TITLE']
@@ -619,12 +619,12 @@ class PatentSearcher:
         )
         
         results = query.all()
-        logger.info(f"✅ Title search: {len(results):,} applications found")
+        logger.debug(f"✅ Title search: {len(results):,} applications found")
         return results
     
     def _search_classifications(self, start_date: str, end_date: str) -> List:
         """Search patent classifications for configured codes."""
-        logger.info("📝 Step 3: Classification search...")
+        logger.debug("📝 Step 3: Classification search...")
         
         TLS201_APPLN = self.models['TLS201_APPLN']
         TLS224_APPLN_CPC = self.models['TLS224_APPLN_CPC']
@@ -632,10 +632,14 @@ class PatentSearcher:
         func = self.sql_funcs['func']
         
         # Use classification codes from config
-        classification_config = self.search_config.get('classification_codes', {})
+        classification_config = self.search_config.get('cpc_classifications', {})
+        technology_areas = classification_config.get('technology_areas', {})
         focused_codes = []
-        for category_codes in classification_config.get('cpc_codes', {}).values():
-            focused_codes.extend(category_codes[:2])  # Take first 2 from each category
+        for area_name, area_config in technology_areas.items():
+            if isinstance(area_config, dict) and 'codes' in area_config:
+                category_codes = area_config['codes']
+                if isinstance(category_codes, list):
+                    focused_codes.extend(category_codes[:2])  # Take first 2 from each category
         
         # Configuration is required - no fallback
         if not focused_codes:
@@ -655,7 +659,7 @@ class PatentSearcher:
         )
         
         results = query.all()
-        logger.info(f"✅ Classification search: {len(results):,} applications found")
+        logger.debug(f"✅ Classification search: {len(results):,} applications found")
         return results
     
     def _combine_search_results(self, abstract_results: List, title_results: List, 
@@ -671,11 +675,11 @@ class PatentSearcher:
         all_families = list(set(all_keyword_families + classification_families))
         intersection_families = list(set(all_keyword_families) & set(classification_families))
         
-        logger.info(f"\n📊 SEARCH RESULTS SUMMARY:")
-        logger.info(f"   Keywords families: {len(all_keyword_families):,}")
-        logger.info(f"   Classification families: {len(set(classification_families)):,}")
-        logger.info(f"   Total unique families: {len(all_families):,}")
-        logger.info(f"   🎯 High-quality intersection: {len(intersection_families):,}")
+        logger.debug(f"\n📊 SEARCH RESULTS SUMMARY:")
+        logger.debug(f"   Keywords families: {len(all_keyword_families):,}")
+        logger.debug(f"   Classification families: {len(set(classification_families)):,}")
+        logger.debug(f"   Total unique families: {len(all_families):,}")
+        logger.debug(f"   🎯 High-quality intersection: {len(intersection_families):,}")
         
         if len(all_families) == 0:
             logger.warning("No results found in search")
@@ -705,10 +709,10 @@ class PatentSearcher:
         )
         df_result['filing_year'] = pd.to_datetime(df_result['appln_filing_date']).dt.year
         
-        logger.info("✅ Real PATSTAT search successful!")
-        logger.info(f"📈 Found {len(df_result):,} patent applications")
-        logger.info(f"📊 Covering {df_result['docdb_family_id'].nunique():,} unique families")
-        logger.info(f"🏆 Average quality score: {df_result['quality_score'].mean():.2f}")
+        logger.debug("✅ Real PATSTAT search successful!")
+        logger.debug(f"📈 Found {len(df_result):,} patent applications")
+        logger.debug(f"📊 Covering {df_result['docdb_family_id'].nunique():,} unique families")
+        logger.debug(f"🏆 Average quality score: {df_result['quality_score'].mean():.2f}")
         
         return df_result
     
@@ -741,7 +745,7 @@ class CitationAnalyzer:
         if missing_tables:
             raise RuntimeError(f"Citation analysis requires tables: {missing_tables}")
         
-        logger.info("✅ Citation analyzer initialized with PATSTAT tables")
+        logger.debug("✅ Citation analyzer initialized with PATSTAT tables")
     
     def get_forward_citations(self, family_ids: List[int], include_metadata: bool = True) -> pd.DataFrame:
         """
@@ -758,7 +762,7 @@ class CitationAnalyzer:
         if not self.client.is_connected():
             raise RuntimeError("PATSTAT connection is required for citation analysis")
         
-        logger.info(f"🔍 Analyzing forward citations for {len(family_ids)} families...")
+        logger.debug(f"🔍 Analyzing forward citations for {len(family_ids)} families...")
         
         TLS228_DOCDB_FAM_CITN = self.models['TLS228_DOCDB_FAM_CITN']
         
@@ -788,9 +792,9 @@ class CitationAnalyzer:
                 forward_citations_df, 'forward'
             )
         
-        logger.info(f"✅ Found {len(forward_citations_df)} forward citation relationships")
-        logger.info(f"   {forward_citations_df['citing_family_id'].nunique()} unique citing families")
-        logger.info(f"   {forward_citations_df['cited_family_id'].nunique()} cited families")
+        logger.debug(f"✅ Found {len(forward_citations_df)} forward citation relationships")
+        logger.debug(f"   {forward_citations_df['citing_family_id'].nunique()} unique citing families")
+        logger.debug(f"   {forward_citations_df['cited_family_id'].nunique()} cited families")
         
         return forward_citations_df
     
@@ -809,7 +813,7 @@ class CitationAnalyzer:
         if not self.client.is_connected():
             raise RuntimeError("PATSTAT connection is required for citation analysis")
         
-        logger.info(f"🔍 Analyzing backward citations from {len(family_ids)} families...")
+        logger.debug(f"🔍 Analyzing backward citations from {len(family_ids)} families...")
         
         TLS228_DOCDB_FAM_CITN = self.models['TLS228_DOCDB_FAM_CITN']
         
@@ -839,9 +843,9 @@ class CitationAnalyzer:
                 backward_citations_df, 'backward'
             )
         
-        logger.info(f"✅ Found {len(backward_citations_df)} backward citation relationships")
-        logger.info(f"   {backward_citations_df['citing_family_id'].nunique()} families citing prior art")
-        logger.info(f"   {backward_citations_df['cited_family_id'].nunique()} unique cited families")
+        logger.debug(f"✅ Found {len(backward_citations_df)} backward citation relationships")
+        logger.debug(f"   {backward_citations_df['citing_family_id'].nunique()} families citing prior art")
+        logger.debug(f"   {backward_citations_df['cited_family_id'].nunique()} unique cited families")
         
         return backward_citations_df
     
@@ -855,7 +859,7 @@ class CitationAnalyzer:
         Returns:
             Dictionary containing citation DataFrames and analysis metrics
         """
-        logger.info(f"📊 Performing comprehensive citation analysis for {len(family_ids)} families...")
+        logger.debug(f"📊 Performing comprehensive citation analysis for {len(family_ids)} families...")
         
         # Get forward and backward citations
         forward_citations = self.get_forward_citations(family_ids, include_metadata=True)
@@ -889,7 +893,7 @@ class CitationAnalyzer:
             }
         }
         
-        logger.info("✅ Comprehensive citation analysis completed")
+        logger.debug("✅ Comprehensive citation analysis completed")
         return results
     
     def _enrich_citation_metadata(self, citation_df: pd.DataFrame, citation_type: str) -> pd.DataFrame:
