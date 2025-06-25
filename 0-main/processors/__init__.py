@@ -1,260 +1,295 @@
 """
-Processors Module for REE Patent Analysis
+Data Processing Module for Patent Intelligence
 Enhanced from EPO PATLIB 2025 Live Demo Code
 
-This module provides specialized processors for different aspects of patent data analysis:
-- Applicant analysis and market intelligence
-- Geographic analysis and international filing patterns  
-- Classification analysis and technology networks
+This module provides comprehensive patent data processing capabilities including
+search functionality, applicant analysis, classification intelligence, geographic patterns, and citation analysis.
 """
 
-from .applicant import ApplicantAnalyzer, ApplicantDataProcessor, create_applicant_analyzer, create_applicant_processor
-from .geographic import GeographicAnalyzer, GeographicDataProcessor, create_geographic_analyzer, create_geographic_processor
-from .classification import ClassificationAnalyzer, ClassificationDataProcessor, create_classification_analyzer, create_classification_processor
+import pandas as pd
+
+from .search import PatentSearchProcessor, create_patent_search_processor
+from .applicant import ApplicantAnalyzer, create_applicant_analyzer
+from .classification import ClassificationAnalyzer, create_classification_analyzer
+from .geographic import GeographicAnalyzer, create_geographic_analyzer
+from .citation import CitationAnalyzer, create_citation_analyzer
 
 __version__ = "1.0.0"
 
 __all__ = [
-    # Applicant processing
+    # Patent Search (Foundation)
+    'PatentSearchProcessor',
+    'create_patent_search_processor',
+    
+    # Applicant Analysis
     'ApplicantAnalyzer',
-    'ApplicantDataProcessor', 
     'create_applicant_analyzer',
-    'create_applicant_processor',
     
-    # Geographic processing
-    'GeographicAnalyzer',
-    'GeographicDataProcessor',
-    'create_geographic_analyzer', 
-    'create_geographic_processor',
-    
-    # Classification processing
+    # Classification Analysis
     'ClassificationAnalyzer',
-    'ClassificationDataProcessor',
     'create_classification_analyzer',
-    'create_classification_processor'
+    
+    # Geographic Analysis
+    'GeographicAnalyzer',
+    'create_geographic_analyzer',
+    
+    # Citation Analysis
+    'CitationAnalyzer',
+    'create_citation_analyzer'
 ]
 
-# Quick setup functions for integrated workflows
-def setup_complete_analysis_pipeline():
+# Unified processor setup functions
+def setup_full_processing_pipeline():
     """
-    Setup complete analysis pipeline with all processors.
+    Setup complete processing pipeline with search processor as foundation plus all enhancement processors.
     
     Returns:
-        Dictionary with all configured processor instances
+        Dictionary with all configured processors
     """
     return {
+        'search_processor': create_patent_search_processor(),
         'applicant_analyzer': create_applicant_analyzer(),
-        'applicant_processor': create_applicant_processor(),
-        'geographic_analyzer': create_geographic_analyzer(),
-        'geographic_processor': create_geographic_processor(),
         'classification_analyzer': create_classification_analyzer(),
-        'classification_processor': create_classification_processor()
+        'geographic_analyzer': create_geographic_analyzer(),
+        'citation_analyzer': create_citation_analyzer()
     }
 
-def analyze_patent_dataset(patent_data, analysis_type='all'):
+def create_analysis_pipeline():
     """
-    Convenience function to analyze patent dataset with multiple processors.
+    Create analysis pipeline (search processor + analyzers).
     
-    Args:
-        patent_data: Patent data (format depends on analysis_type)
-        analysis_type: Type of analysis ('applicant', 'geographic', 'classification', 'all')
-        
     Returns:
-        Dictionary with analysis results
+        Dictionary with analysis components
     """
-    results = {}
-    
-    if analysis_type in ['applicant', 'all']:
-        try:
-            applicant_analyzer = create_applicant_analyzer()
-            applicant_processor = create_applicant_processor()
-            
-            if isinstance(patent_data, list):
-                processed_data = applicant_processor.process_patstat_applicant_data(patent_data)
-            else:
-                processed_data = patent_data
-                
-            analyzed_data = applicant_analyzer.analyze_applicants(processed_data)
-            summary = applicant_analyzer.generate_market_intelligence_summary()
-            
-            results['applicant'] = {
-                'analyzed_data': analyzed_data,
-                'summary': summary,
-                'analyzer': applicant_analyzer
-            }
-        except Exception as e:
-            results['applicant'] = {'error': str(e)}
-    
-    if analysis_type in ['geographic', 'all']:
-        try:
-            geographic_analyzer = create_geographic_analyzer()
-            geographic_processor = create_geographic_processor()
-            
-            if isinstance(patent_data, list):
-                processed_data = geographic_processor.process_patstat_geographic_data(patent_data)
-            else:
-                processed_data = patent_data
-                
-            analyzed_data = geographic_analyzer.analyze_geographic_patterns(processed_data)
-            summary = geographic_analyzer.generate_geographic_summary()
-            
-            results['geographic'] = {
-                'analyzed_data': analyzed_data,
-                'summary': summary,
-                'analyzer': geographic_analyzer
-            }
-        except Exception as e:
-            results['geographic'] = {'error': str(e)}
-    
-    if analysis_type in ['classification', 'all']:
-        try:
-            classification_analyzer = create_classification_analyzer()
-            classification_processor = create_classification_processor()
-            
-            if isinstance(patent_data, list):
-                processed_data = classification_processor.process_patstat_classification_data(patent_data)
-            else:
-                processed_data = patent_data
-                
-            analyzed_data = classification_analyzer.analyze_classification_patterns(processed_data)
-            network = classification_analyzer.build_classification_network(analyzed_data)
-            intelligence = classification_analyzer.generate_classification_intelligence()
-            
-            results['classification'] = {
-                'analyzed_data': analyzed_data,
-                'network': network,
-                'intelligence': intelligence,
-                'analyzer': classification_analyzer
-            }
-        except Exception as e:
-            results['classification'] = {'error': str(e)}
-    
-    return results
+    return {
+        'search_processor': create_patent_search_processor(),
+        'applicant_analyzer': create_applicant_analyzer(),
+        'classification_analyzer': create_classification_analyzer(),
+        'geographic_analyzer': create_geographic_analyzer(),
+        'citation_analyzer': create_citation_analyzer()
+    }
 
-# Analysis workflow templates
-class AnalysisWorkflow:
+# Comprehensive analysis workflow for the new refactored processors
+class ComprehensiveAnalysisWorkflow:
     """
-    Integrated analysis workflow for comprehensive patent intelligence.
+    Integrated analysis workflow for comprehensive patent intelligence across all dimensions.
+    
+    This workflow uses the refactored processors that work with PatentSearchProcessor results.
     """
     
-    def __init__(self):
-        """Initialize analysis workflow with all processors."""
-        self.processors = setup_complete_analysis_pipeline()
-        self.results = {}
+    def __init__(self, patstat_client=None):
+        """Initialize comprehensive analysis workflow with all processors."""
+        self.processors = {
+            'search_processor': create_patent_search_processor(),
+            'applicant_analyzer': create_applicant_analyzer(patstat_client),
+            'classification_analyzer': create_classification_analyzer(patstat_client),
+            'geographic_analyzer': create_geographic_analyzer(patstat_client),
+            'citation_analyzer': create_citation_analyzer(patstat_client)
+        }
+        self.search_results = None
+        self.analysis_results = {}
     
-    def run_applicant_analysis(self, applicant_data):
-        """Run comprehensive applicant analysis."""
-        processor = self.processors['applicant_processor']
+    def run_patent_search(self, keywords=None, technology_areas=None, date_range=None, 
+                         quality_mode='intersection', max_results=None):
+        """
+        Run patent family search using PatentSearchProcessor.
+        
+        Args:
+            keywords: List of keywords to search for
+            technology_areas: List of technology areas from config
+            date_range: Tuple of (start_date, end_date)
+            quality_mode: Search quality mode ('intersection', 'union', etc.)
+            max_results: Maximum number of results to return
+            
+        Returns:
+            Search results DataFrame
+        """
+        search_processor = self.processors['search_processor']
+        
+        self.search_results = search_processor.search_patent_families(
+            keywords=keywords,
+            technology_areas=technology_areas,
+            date_range=date_range,
+            quality_mode=quality_mode,
+            max_results=max_results
+        )
+        
+        return self.search_results
+    
+    def run_applicant_analysis(self, search_results=None):
+        """Run applicant analysis on search results."""
+        if search_results is None:
+            if self.search_results is None:
+                raise ValueError("No search results available. Run run_patent_search() first.")
+            search_results = self.search_results
+        
         analyzer = self.processors['applicant_analyzer']
+        self.analysis_results['applicant'] = analyzer.analyze_search_results(search_results)
         
-        if isinstance(applicant_data, list):
-            processed_data = processor.process_patstat_applicant_data(applicant_data)
-        else:
-            processed_data = applicant_data
-        
-        analyzed_data = analyzer.analyze_applicants(processed_data)
-        summary = analyzer.generate_market_intelligence_summary()
-        landscape = analyzer.get_competitive_landscape()
-        
-        self.results['applicant'] = {
-            'data': analyzed_data,
-            'summary': summary,
-            'landscape': landscape
-        }
-        
-        return self.results['applicant']
+        return self.analysis_results['applicant']
     
-    def run_geographic_analysis(self, geographic_data):
-        """Run comprehensive geographic analysis."""
-        processor = self.processors['geographic_processor']
-        analyzer = self.processors['geographic_analyzer']
+    def run_classification_analysis(self, search_results=None):
+        """Run classification analysis on search results."""
+        if search_results is None:
+            if self.search_results is None:
+                raise ValueError("No search results available. Run run_patent_search() first.")
+            search_results = self.search_results
         
-        if isinstance(geographic_data, list):
-            processed_data = processor.process_patstat_geographic_data(geographic_data)
-        else:
-            processed_data = geographic_data
-        
-        analyzed_data = analyzer.analyze_geographic_patterns(processed_data)
-        summary = analyzer.generate_geographic_summary()
-        landscape = analyzer.get_competitive_landscape_by_region()
-        evolution = analyzer.analyze_filing_evolution()
-        
-        self.results['geographic'] = {
-            'data': analyzed_data,
-            'summary': summary,
-            'landscape': landscape,
-            'evolution': evolution
-        }
-        
-        return self.results['geographic']
-    
-    def run_classification_analysis(self, classification_data):
-        """Run comprehensive classification analysis."""
-        processor = self.processors['classification_processor']
         analyzer = self.processors['classification_analyzer']
+        self.analysis_results['classification'] = analyzer.analyze_search_results(search_results)
         
-        if isinstance(classification_data, list):
-            processed_data = processor.process_patstat_classification_data(classification_data)
-        else:
-            processed_data = classification_data
+        return self.analysis_results['classification']
+    
+    def run_geographic_analysis(self, search_results=None):
+        """Run geographic analysis on search results."""
+        if search_results is None:
+            if self.search_results is None:
+                raise ValueError("No search results available. Run run_patent_search() first.")
+            search_results = self.search_results
         
-        analyzed_data = analyzer.analyze_classification_patterns(processed_data)
-        network = analyzer.build_classification_network(analyzed_data)
-        intelligence = analyzer.generate_classification_intelligence()
-        hotspots = analyzer.get_innovation_hotspots()
+        analyzer = self.processors['geographic_analyzer']
+        self.analysis_results['geographic'] = analyzer.analyze_search_results(search_results)
         
-        self.results['classification'] = {
-            'data': analyzed_data,
-            'network': network,
-            'intelligence': intelligence,
-            'hotspots': hotspots
+        return self.analysis_results['geographic']
+    
+    def run_citation_analysis(self, search_results=None):
+        """Run citation analysis on search results."""
+        if search_results is None:
+            if self.search_results is None:
+                raise ValueError("No search results available. Run run_patent_search() first.")
+            search_results = self.search_results
+        
+        analyzer = self.processors['citation_analyzer']
+        self.analysis_results['citation'] = analyzer.analyze_search_results(search_results)
+        
+        return self.analysis_results['citation']
+    
+    def run_complete_analysis(self, search_results=None):
+        """
+        Run complete analysis workflow on search results.
+        
+        Args:
+            search_results: DataFrame from PatentSearchProcessor (optional, uses cached if available)
+            
+        Returns:
+            Dictionary with all analysis results
+        """
+        if search_results is None:
+            if self.search_results is None:
+                raise ValueError("No search results available. Run run_patent_search() first.")
+            search_results = self.search_results
+        
+        # Run all analyses
+        self.run_applicant_analysis(search_results)
+        self.run_classification_analysis(search_results)
+        self.run_geographic_analysis(search_results)
+        self.run_citation_analysis(search_results)
+        
+        return self.analysis_results
+    
+    def get_comprehensive_summary(self):
+        """
+        Generate comprehensive summary across all analyses.
+        
+        Returns:
+            Dictionary with integrated summary
+        """
+        if not self.analysis_results:
+            return {'status': 'No analysis results available'}
+        
+        summary = {
+            'search_overview': {
+                'total_families': len(self.search_results) if self.search_results is not None else 0,
+                'search_quality': self.search_results['quality_score'].mean() if self.search_results is not None else 0
+            },
+            'analyses_completed': list(self.analysis_results.keys()),
+            'analysis_summaries': {}
         }
         
-        return self.results['classification']
-    
-    def generate_integrated_report(self):
-        """Generate integrated report combining all analysis results."""
-        if not self.results:
-            raise ValueError("No analysis results available. Run analyses first.")
-        
-        integrated_report = {
-            'executive_summary': {},
-            'detailed_findings': self.results,
-            'cross_analysis_insights': {},
-            'recommendations': []
-        }
-        
-        # Generate cross-analysis insights
-        if 'applicant' in self.results and 'geographic' in self.results:
-            # Cross-reference top applicants with geographic distribution
-            integrated_report['cross_analysis_insights']['applicant_geographic'] = {
-                'description': 'Analysis of top applicants by geographic distribution',
-                'status': 'Data available for cross-analysis'
-            }
-        
-        if 'classification' in self.results:
-            # Technology domain insights
-            integrated_report['cross_analysis_insights']['technology_domains'] = {
-                'description': 'Technology domain analysis with innovation networks',
-                'status': 'Network analysis available'
-            }
-        
-        # Generate high-level recommendations
-        integrated_report['recommendations'] = [
-            'Monitor cross-domain innovation patterns for emerging technologies',
-            'Track geographic shifts in patent filing strategies',
-            'Analyze competitive positioning in key technology domains',
-            'Investigate patent family size trends for strategic insights'
-        ]
-        
-        return integrated_report
-    
-    def get_results_summary(self):
-        """Get high-level summary of all analysis results."""
-        summary = {}
-        
-        for analysis_type, results in self.results.items():
-            if 'summary' in results:
-                summary[analysis_type] = results['summary']['overview'] if 'overview' in results['summary'] else results['summary']
+        # Get summaries from each analyzer
+        for analysis_type, results in self.analysis_results.items():
+            if hasattr(self.processors[f'{analysis_type}_analyzer'], f'get_{analysis_type}_summary'):
+                summary_method = getattr(self.processors[f'{analysis_type}_analyzer'], f'get_{analysis_type}_summary')
+                summary['analysis_summaries'][analysis_type] = summary_method()
+            else:
+                summary['analysis_summaries'][analysis_type] = {
+                    'status': 'Analysis completed',
+                    'records': len(results) if hasattr(results, '__len__') else 'N/A'
+                }
         
         return summary
+    
+    def export_all_results(self, base_filename=None):
+        """
+        Export all analysis results to files.
+        
+        Args:
+            base_filename: Base filename for exports (timestamp will be added if None)
+            
+        Returns:
+            Dictionary with export filenames
+        """
+        from datetime import datetime
+        
+        if base_filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_filename = f"comprehensive_patent_analysis_{timestamp}"
+        
+        exports = {}
+        
+        # Export search results
+        if self.search_results is not None:
+            search_file = f"{base_filename}_search_results.xlsx"
+            self.search_results.to_excel(search_file, index=False)
+            exports['search_results'] = search_file
+        
+        # Export each analysis
+        for analysis_type, analyzer in self.processors.items():
+            if analysis_type != 'search_processor' and hasattr(analyzer, f'export_{analysis_type.replace("_analyzer", "")}_analysis'):
+                export_method = getattr(analyzer, f'export_{analysis_type.replace("_analyzer", "")}_analysis')
+                try:
+                    filename = export_method(f"{base_filename}_{analysis_type.replace('_analyzer', '')}_analysis.xlsx")
+                    exports[analysis_type] = filename
+                except Exception as e:
+                    exports[analysis_type] = f"Export failed: {e}"
+        
+        return exports
+
+# Quick analysis function for the refactored processors
+def run_comprehensive_patent_analysis(keywords=None, technology_areas=None, date_range=None, 
+                                     patstat_client=None, max_results=None):
+    """
+    Run comprehensive patent analysis using the refactored processor workflow.
+    
+    Args:
+        keywords: List of keywords to search for
+        technology_areas: List of technology areas from config
+        date_range: Tuple of (start_date, end_date)
+        patstat_client: PATSTAT client instance (optional)
+        max_results: Maximum number of search results
+        
+    Returns:
+        Dictionary with complete analysis results
+    """
+    workflow = ComprehensiveAnalysisWorkflow(patstat_client)
+    
+    # Run search
+    search_results = workflow.run_patent_search(
+        keywords=keywords,
+        technology_areas=technology_areas,
+        date_range=date_range,
+        max_results=max_results
+    )
+    
+    # Run complete analysis
+    analysis_results = workflow.run_complete_analysis(search_results)
+    
+    # Get summary
+    summary = workflow.get_comprehensive_summary()
+    
+    return {
+        'workflow': workflow,
+        'search_results': search_results,
+        'analysis_results': analysis_results,
+        'summary': summary
+    }

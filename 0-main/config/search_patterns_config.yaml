@@ -22,30 +22,47 @@ global_settings:
     low_precision: 0.7       # Classifications only match
 
 # Simple Keywords (easy to add/change)
+# IMPORTANT: Keywords are USER-PROVIDED - users fill these categories with specific terms
+# System searches ALL THREE stages and tracks which combinations get hits in PATSTAT/OPS
 keywords:
   # Primary technology terms
   primary: 
-    - "technology"
-    - "innovation" 
-    - "method"
-    - "process"
-    - "system"
+    #- "technology"
+    #- "innovation" 
+    #- "method"
+    #- "process"
+    #- "system"
+    - "rare earth"
+    - "lanthanide"
+    - "neodymium"
+    - "dysprosium"
+    - "terbium"
   
   # Secondary terms
   secondary:
-    - "development"
-    - "manufacturing"
-    - "processing"
-    - "production"
-    - "application"
+    #- "development"
+    #- "manufacturing"
+    #- "processing"
+    #- "production"
+    #- "application"
+    - "extraction"
+    - "separation"
+    - "purification"
+    - "recovery"
+    - "recycling"
   
   # Specific focus areas (customize as needed)
   focus:
-    - "advanced"
-    - "novel"
-    - "improved"
-    - "efficient"
-    - "sustainable"
+    #- "advanced"
+    #- "novel"
+    #- "improved"
+    #- "efficient"
+    #- "sustainable"
+    - "magnet"
+    - "phosphor"
+    - "catalyst"
+    - "battery"
+    - "ceramic"
   
   # For EPO OPS validation
   validation:
@@ -56,6 +73,8 @@ keywords:
     - "development"
 
 # CPC Classifications (only CPC, no IPC)
+# IMPORTANT: User selects technology area symbols - system searches ALL codes for that area
+# System tracks which CPC classes/technology areas yield hits in PATSTAT/OPS for optimization
 cpc_classifications:
   # Technology areas with CPC codes
   technology_areas:
@@ -82,6 +101,40 @@ cpc_classifications:
     manufacturing:
       codes: ["B29C64/00", "B33Y10/00", "B23K26/00"]
       description: "Manufacturing processes and 3D printing"
+    
+    rare_earth_elements:
+      codes: [
+        # REE Extraction & Processing (exact format from working notebook)
+        "C22B  19/28", "C22B  19/30", "C22B  25/06",
+        
+        # REE Ceramics & Advanced Materials  
+        "C04B   7/24", "C04B   7/26", "C04B   7/28", "C04B   7/30",
+        "C04B  11/26", "C04B  18/04", "C04B  18/06", "C04B  18/08", "C04B  33/132",
+        "C03B   1/02",
+        
+        # REE in Energy Storage (Batteries) - exact format from working notebook
+        "H01M   6/52", "H01M  10/54",
+        
+        # REE Phosphors & Display Technology
+        "C09K  11/01", "H01J   9/52",
+        
+        # REE in Electrical Applications
+        "H01B  15/00", "C10M 175/00",
+        
+        # Recovery & Recycling Technologies (CPC Y-codes) - exact format from working notebook
+        "Y02W30/52", "Y02W30/56", "Y02W30/58", "Y02W30/60",
+        "Y02W30/62", "Y02W30/64", "Y02W30/66", "Y02W30/74",
+        "Y02W30/78", "Y02W30/80", "Y02W30/82", "Y02W30/84",
+        "Y02W30/91", "Y02P10/20",
+        
+        # Manufacturing & Processing
+        "B22F   8/00", "B29B   7/66", "B29B  17/00", "B30B   9/32", "C08J  11/00",
+        "D01G  11/00", "D21B   1/08", "D21B   1/10", "D21B   1/32", "D21C   5/02", "D21H  17/01",
+        
+        # Specialized Applications
+        "A43B   1/12", "B03B   9/06", "B62D  67/00", "B65H  73/00", "B65D  65/46"
+      ]
+      description: "Rare Earth Elements - extraction, applications, and recycling"
 
 # Search Strategies (simplified)
 search_strategies:

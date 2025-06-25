@@ -1,9 +1,10 @@
 """
-Classification Analysis Processor for REE Patent Analysis
+Classification Analysis Processor for Patent Intelligence
 Enhanced from EPO PATLIB 2025 Live Demo Code
 
-This module processes patent classification data (IPC/CPC) to analyze technology domains,
-innovation networks, and cross-domain convergence patterns for rare earth elements.
+This module processes search results from PatentSearchProcessor to analyze technology domains,
+innovation networks, and cross-domain convergence patterns. Works with PATSTAT data to 
+extract and analyze IPC/CPC classification information.
 """
 
 import pandas as pd
@@ -11,8 +12,21 @@ import numpy as np
 import networkx as nx
 from typing import Dict, List, Optional, Tuple, Union, Set
 import re
-from collections import defaultdict
+from collections import defaultdict, Counter
+from datetime import datetime
 import logging
+
+# Import PATSTAT client and models for classification data enrichment
+try:
+    from epo.tipdata.patstat import PatstatClient
+    from epo.tipdata.patstat.database.models import (
+        TLS201_APPLN, TLS209_APPLN_IPC, TLS224_APPLN_CPC
+    )
+    from sqlalchemy import func, and_, distinct
+    PATSTAT_AVAILABLE = True
+except ImportError:
+    PATSTAT_AVAILABLE = False
+    logging.warning("PATSTAT integration not available")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -20,124 +34,611 @@ logger = logging.getLogger(__name__)
 
 class ClassificationAnalyzer:
     """
-    Comprehensive classification analysis for technology intelligence and innovation networks.
+    Classification analyzer that works with PatentSearchProcessor results.
+    
+    Takes patent family search results and enriches them with classification data from PATSTAT,
+    then performs comprehensive technology intelligence analysis.
     """
     
-    # REE-specific IPC/CPC classification codes
-    REE_CLASSIFICATION_CODES = {
-        # Extraction and Processing
-        'C22B  19/28': 'REE Extraction - Specific Methods',
-        'C22B  19/30': 'REE Extraction - Advanced Techniques',
-        'C22B  25/06': 'REE Processing - General Methods',
-        
-        # Ceramics and Materials
-        'C04B  18/04': 'REE Ceramics - Basic Applications',
-        'C04B  18/06': 'REE Ceramics - Advanced Materials',
-        'C04B  18/08': 'REE Ceramics - Specialized Uses',
-        
-        # Energy Storage and Batteries
-        'H01M   6/52': 'REE Batteries - Primary Cells',
-        'H01M  10/54': 'REE Batteries - Secondary Cells',
-        
-        # Optical and Electronic Applications
-        'C09K  11/01': 'REE Phosphors - Luminescent Materials',
-        'H01J   9/52': 'REE Electronic Devices - Display Technology',
-        
-        # Recycling and Sustainability
-        'Y02W30/52': 'REE Recycling - Waste Management',
-        'Y02W30/56': 'REE Recycling - Material Recovery',
-        'Y02W30/84': 'REE Recycling - Specialized Techniques'
-    }
-    
-    # Technology domain classification
+    # Core technology domains based on CPC first 4 characters
     TECHNOLOGY_DOMAINS = {
-        'C22B': 'Metallurgy & Extraction',
-        'C04B': 'Ceramics & Materials',
-        'H01M': 'Batteries & Energy Storage',
-        'C09K': 'Phosphors & Luminescence',
-        'H01J': 'Electronic Devices',
-        'Y02W': 'Recycling & Sustainability',
-        'G06F': 'Computing & AI',
-        'B03C': 'Magnetic Separation',
-        'C01F': 'Inorganic Chemistry',
-        'H01F': 'Magnetics & Electromagnetics',
-        'G01N': 'Measuring & Testing',
-        'B09B': 'Solid Waste Disposal'
+        'A01': 'Agriculture & Food',
+        'A43': 'Footwear & Textiles',
+        'A61': 'Medical Technology',
+        'B01': 'Physical/Chemical Processes',
+        'B03': 'Separation & Sorting',
+        'B22': 'Casting & Metallurgy',
+        'B29': 'Plastics & Materials',
+        'C01': 'Inorganic Chemistry',
+        'C04': 'Ceramics & Glass',
+        'C07': 'Organic Chemistry',
+        'C08': 'Polymers',
+        'C09': 'Dyes & Coatings',
+        'C10': 'Petroleum & Fuels',
+        'C22': 'Metallurgy',
+        'C25': 'Electrochemistry',
+        'D01': 'Textiles & Fibers',
+        'D21': 'Paper & Cellulose',
+        'F01': 'Engines & Motors',
+        'F02': 'Combustion Engines',
+        'F16': 'Engineering Elements',
+        'F24': 'Heating & Cooling',
+        'G01': 'Measuring & Testing',
+        'G02': 'Optics',
+        'G06': 'Computing & Calculation',
+        'G21': 'Nuclear Technology',
+        'H01': 'Basic Electric Elements',
+        'H02': 'Power Generation & Distribution',
+        'H03': 'Electronic Circuits',
+        'H04': 'Communication Technology',
+        'H05': 'Electric Techniques',
+        'Y02': 'Climate Change Mitigation',
+        'Y04': 'Smart Grids'
     }
     
-    # Sub-domain classifications for detailed analysis
-    SUB_DOMAINS = {
-        'C22B': {
-            '19': 'Rare Earth Extraction',
-            '25': 'General Metal Processing',
-            '07': 'Electrolytic Processing'
-        },
-        'C04B': {
-            '18': 'REE Ceramics',
-            '35': 'Shaped Articles',
-            '38': 'Porous Materials'
-        },
-        'H01M': {
-            '06': 'Primary Batteries',
-            '10': 'Secondary Batteries',
-            '04': 'Battery Components'
-        }
+    # REE-specific classification mapping
+    REE_CLASSIFICATION_FOCUS = {
+        'C22B': 'REE Extraction & Processing',
+        'C04B': 'REE Ceramics & Materials',
+        'H01M': 'REE Batteries & Energy Storage',
+        'C09K': 'REE Phosphors & Luminescence',
+        'H01J': 'REE Electronic Devices',
+        'H01F': 'REE Magnetics & Motors',
+        'Y02W': 'REE Recycling & Sustainability',
+        'Y02E': 'REE Clean Energy Applications'
     }
     
-    def __init__(self):
-        """Initialize classification analyzer."""
-        self.analyzed_data = None
-        self.network_graph = None
-        self.classification_intelligence = None
-    
-    def analyze_classification_patterns(self, patent_data: pd.DataFrame,
-                                      ipc1_col: str = 'IPC_1',
-                                      ipc2_col: str = 'IPC_2',
-                                      family_col: str = 'family_id',
-                                      year_col: str = 'filing_year') -> pd.DataFrame:
+    def __init__(self, patstat_client: Optional[object] = None):
         """
-        Comprehensive classification analysis including co-occurrence networks.
+        Initialize classification analyzer.
         
         Args:
-            patent_data: DataFrame with patent classification data
-            ipc1_col: Column name for first IPC code
-            ipc2_col: Column name for second IPC code (for co-occurrence)
-            family_col: Column name for patent family IDs
-            year_col: Column name for filing years
-            
+            patstat_client: PATSTAT client instance for data enrichment
+        """
+        self.patstat_client = patstat_client
+        self.session = None
+        self.analyzed_data = None
+        self.classification_data = None
+        self.network_graph = None
+        self.classification_intelligence = None
+        
+        # Initialize PATSTAT connection
+        if PATSTAT_AVAILABLE and self.patstat_client is None:
+            try:
+                self.patstat_client = PatstatClient(env='PROD')
+                logger.info("✅ Connected to PATSTAT for classification data enrichment")
+            except Exception as e:
+                logger.error(f"❌ Failed to connect to PATSTAT: {e}")
+                self.patstat_client = None
+        
+        if self.patstat_client:
+            try:
+                self.session = self.patstat_client.orm()
+                logger.info("✅ PATSTAT session initialized for classification analysis")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize PATSTAT session: {e}")
+    
+    def analyze_search_results(self, search_results: pd.DataFrame) -> pd.DataFrame:
+        """
+        Analyze patent search results to extract classification intelligence.
+        
+        Args:
+            search_results: DataFrame from PatentSearchProcessor with columns:
+                           ['docdb_family_id', 'quality_score', 'match_type', 'earliest_filing_year', etc.]
+                           
         Returns:
             Enhanced DataFrame with classification intelligence
         """
-        logger.info("🏷️ Starting comprehensive classification analysis...")
+        logger.info(f"🏷️ Starting classification analysis of {len(search_results)} patent families...")
         
-        df = patent_data.copy()
+        if search_results.empty:
+            logger.warning("⚠️ No search results to analyze")
+            return pd.DataFrame()
         
-        # Validate required columns
-        required_cols = [ipc1_col, family_col, year_col]
-        missing_cols = [col for col in required_cols if col not in df.columns]
-        if missing_cols:
-            raise ValueError(f"Missing required columns: {missing_cols}")
+        # Step 1: Enrich search results with classification data from PATSTAT
+        logger.info("📊 Step 1: Enriching with classification data from PATSTAT...")
+        classification_data = self._enrich_with_classification_data(search_results)
         
-        # Clean and standardize classification codes
-        df = self._clean_classification_codes(df, ipc1_col, ipc2_col)
+        if classification_data.empty:
+            logger.warning("⚠️ No classification data found for the search results")
+            return pd.DataFrame()
         
-        # Add domain classifications
-        df = self._add_domain_classifications(df, ipc1_col, ipc2_col)
+        # Step 2: Analyze classification patterns and domains
+        logger.info("🔍 Step 2: Analyzing classification patterns and domains...")
+        pattern_analysis = self._analyze_classification_patterns(classification_data)
         
-        # Analyze co-occurrence patterns
-        df = self._analyze_co_occurrence_patterns(df, ipc1_col, ipc2_col, family_col)
+        # Step 3: Build technology networks and co-occurrence
+        logger.info("🕸️ Step 3: Building technology networks and co-occurrence patterns...")
+        network_analysis = self._build_technology_networks(classification_data)
         
-        # Add temporal analysis
-        df = self._add_temporal_classification_patterns(df, year_col)
+        # Step 4: Generate technology intelligence insights
+        logger.info("🎯 Step 4: Generating technology intelligence insights...")
+        intelligence_analysis = self._generate_technology_intelligence(pattern_analysis, network_analysis)
         
-        # Calculate innovation metrics
-        df = self._calculate_innovation_metrics(df, ipc1_col, ipc2_col)
+        self.analyzed_data = intelligence_analysis
+        self.classification_data = classification_data
         
-        self.analyzed_data = df
-        logger.info(f"✅ Classification analysis complete for {len(df)} records")
+        logger.info(f"✅ Classification analysis complete: {len(intelligence_analysis)} technology patterns analyzed")
+        
+        return intelligence_analysis
+    
+    def _enrich_with_classification_data(self, search_results: pd.DataFrame) -> pd.DataFrame:
+        """
+        Enrich search results with classification data from PATSTAT.
+        
+        Uses TLS209_APPLN_IPC and TLS224_APPLN_CPC tables to get classification information.
+        """
+        if not self.session:
+            logger.error("❌ No PATSTAT session available for classification enrichment")
+            return pd.DataFrame()
+        
+        family_ids = search_results['docdb_family_id'].tolist()
+        logger.info(f"   Enriching {len(family_ids)} families with classification data...")
+        
+        try:
+            # Get IPC classifications
+            logger.info("   📋 Querying IPC classifications...")
+            ipc_query = self.session.query(
+                TLS201_APPLN.docdb_family_id,
+                TLS201_APPLN.appln_id,
+                TLS201_APPLN.earliest_filing_year,
+                TLS209_APPLN_IPC.ipc_class_symbol,
+                TLS209_APPLN_IPC.ipc_class_level,
+                TLS209_APPLN_IPC.ipc_version,
+                TLS209_APPLN_IPC.ipc_value,
+                TLS209_APPLN_IPC.ipc_position,
+                TLS209_APPLN_IPC.ipc_gener_auth
+            ).select_from(TLS201_APPLN)\
+            .join(TLS209_APPLN_IPC, TLS201_APPLN.appln_id == TLS209_APPLN_IPC.appln_id)\
+            .filter(TLS201_APPLN.docdb_family_id.in_(family_ids))
+            
+            ipc_result = ipc_query.all()
+            
+            # Get CPC classifications  
+            logger.info("   📋 Querying CPC classifications...")
+            cpc_query = self.session.query(
+                TLS201_APPLN.docdb_family_id,
+                TLS201_APPLN.appln_id,
+                TLS201_APPLN.earliest_filing_year,
+                TLS224_APPLN_CPC.cpc_class_symbol
+            ).select_from(TLS201_APPLN)\
+            .join(TLS224_APPLN_CPC, TLS201_APPLN.appln_id == TLS224_APPLN_CPC.appln_id)\
+            .filter(TLS201_APPLN.docdb_family_id.in_(family_ids))
+            
+            cpc_result = cpc_query.all()
+            
+            # Convert to DataFrames
+            classification_records = []
+            
+            # Process IPC records
+            for record in ipc_result:
+                classification_records.append({
+                    'docdb_family_id': record[0],
+                    'appln_id': record[1],
+                    'earliest_filing_year': record[2],
+                    'classification_symbol': record[3],
+                    'classification_type': 'IPC',
+                    'classification_level': record[4],
+                    'classification_version': record[5],
+                    'classification_value': record[6],
+                    'classification_position': record[7],
+                    'classification_authority': record[8]
+                })
+            
+            # Process CPC records
+            for record in cpc_result:
+                classification_records.append({
+                    'docdb_family_id': record[0],
+                    'appln_id': record[1],
+                    'earliest_filing_year': record[2],
+                    'classification_symbol': record[3],
+                    'classification_type': 'CPC',
+                    'classification_level': None,
+                    'classification_version': None,
+                    'classification_value': None,
+                    'classification_position': None,
+                    'classification_authority': None
+                })
+            
+            if not classification_records:
+                logger.warning("⚠️ No classification data found in PATSTAT for these families")
+                return pd.DataFrame()
+            
+            classification_df = pd.DataFrame(classification_records)
+            
+            # Merge with original search results to preserve quality scores
+            enriched_data = search_results.merge(
+                classification_df,
+                on='docdb_family_id',
+                how='inner'
+            )
+            
+            # Clean and standardize classification codes
+            enriched_data = self._clean_classification_data(enriched_data)
+            
+            logger.info(f"   ✅ Enriched {len(enriched_data)} classification relationships")
+            logger.info(f"   📊 IPC classifications: {len([r for r in classification_records if r['classification_type'] == 'IPC'])}")
+            logger.info(f"   📊 CPC classifications: {len([r for r in classification_records if r['classification_type'] == 'CPC'])}")
+            logger.info(f"   🏢 Covering {enriched_data['docdb_family_id'].nunique()} families")
+            
+            return enriched_data
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to enrich with classification data: {e}")
+            return pd.DataFrame()
+    
+    def _clean_classification_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clean and standardize classification data."""
+        logger.info("🧹 Cleaning classification data...")
+        
+        # Remove empty or null classifications
+        df = df[df['classification_symbol'].notna()].copy()
+        df = df[df['classification_symbol'].str.strip() != ''].copy()
+        
+        # Standardize classification symbols
+        df['classification_symbol_clean'] = df['classification_symbol'].str.strip().str.upper()
+        
+        # Extract main class (first 4 characters for technology domain)
+        df['main_class'] = df['classification_symbol_clean'].str[:4]
+        
+        # Extract subclass (first 7 characters)
+        df['subclass'] = df['classification_symbol_clean'].str[:7]
+        
+        # Add technology domain mapping
+        df['technology_domain'] = df['main_class'].map(self.TECHNOLOGY_DOMAINS).fillna('Other')
+        
+        # Add REE-specific focus area
+        df['ree_focus_area'] = df['main_class'].map(self.REE_CLASSIFICATION_FOCUS).fillna('General Technology')
         
         return df
     
+    def _analyze_classification_patterns(self, classification_data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Analyze classification patterns and technology distributions.
+        """
+        logger.info("🔍 Analyzing classification patterns...")
+        
+        # Check available columns and find the correct year column
+        year_col = None
+        for col in ['earliest_filing_year_x', 'earliest_filing_year_y', 'earliest_filing_year']:
+            if col in classification_data.columns:
+                year_col = col
+                break
+        
+        if year_col is None:
+            logger.error("❌ No filing year column found for classification analysis")
+            return pd.DataFrame()
+        
+        logger.info(f"   Using year column: {year_col}")
+        
+        # Check if quality_score exists before aggregating
+        agg_dict = {
+            'docdb_family_id': 'nunique',
+            'appln_id': 'nunique',
+            'classification_symbol_clean': 'nunique',
+            year_col: ['min', 'max', 'mean']
+        }
+        
+        # Add quality_score only if it exists
+        if 'quality_score' in classification_data.columns:
+            agg_dict['quality_score'] = 'mean'
+        
+        # Aggregate by technology domain
+        domain_analysis = classification_data.groupby('technology_domain').agg(agg_dict).reset_index()
+        
+        # Flatten column names properly
+        flattened_columns = []
+        for col in domain_analysis.columns:
+            if isinstance(col, tuple):
+                if col[1] == '':  # Single level column
+                    flattened_columns.append(col[0])
+                elif col[1] == 'min':
+                    flattened_columns.append('first_filing_year')
+                elif col[1] == 'max':
+                    flattened_columns.append('latest_filing_year')
+                elif col[1] == 'mean' and col[0] == year_col:
+                    flattened_columns.append('avg_filing_year')
+                else:
+                    flattened_columns.append(f"{col[0]}_{col[1]}")
+            else:
+                flattened_columns.append(col)
+        
+        domain_analysis.columns = flattened_columns
+        
+        # Map aggregated column names to expected names
+        column_mapping = {
+            'docdb_family_id_nunique': 'patent_families',
+            'appln_id_nunique': 'total_applications',
+            'classification_symbol_clean_nunique': 'unique_classifications',
+            'quality_score_mean': 'avg_quality_score'
+        }
+        
+        # Apply column name mapping
+        for old_name, new_name in column_mapping.items():
+            if old_name in domain_analysis.columns:
+                domain_analysis = domain_analysis.rename(columns={old_name: new_name})
+        
+        # Add missing avg_quality_score if not present
+        if 'avg_quality_score' not in domain_analysis.columns:
+            domain_analysis['avg_quality_score'] = 2.0
+        
+        # Calculate domain metrics
+        total_families = domain_analysis['patent_families'].sum()
+        domain_analysis['domain_share_pct'] = (domain_analysis['patent_families'] / total_families * 100).round(2)
+        domain_analysis['avg_classifications_per_family'] = (domain_analysis['unique_classifications'] / domain_analysis['patent_families']).round(1)
+        
+        # Activity span
+        domain_analysis['activity_span'] = domain_analysis['latest_filing_year'] - domain_analysis['first_filing_year'] + 1
+        
+        # Sort by patent families
+        domain_analysis = domain_analysis.sort_values('patent_families', ascending=False).reset_index(drop=True)
+        
+        # Add ranking
+        domain_analysis['domain_rank'] = range(1, len(domain_analysis) + 1)
+        
+        logger.info(f"   ✅ Analyzed {len(domain_analysis)} technology domains")
+        logger.info(f"   🏆 Top domain: {domain_analysis.iloc[0]['technology_domain']} ({domain_analysis.iloc[0]['patent_families']} families)")
+        
+        return domain_analysis
+    
+    def _build_technology_networks(self, classification_data: pd.DataFrame) -> Dict:
+        """
+        Build technology networks and analyze co-occurrence patterns.
+        """
+        logger.info("🕸️ Building technology networks...")
+        
+        # Create co-occurrence matrix at family level
+        family_classifications = classification_data.groupby('docdb_family_id')['main_class'].apply(list).reset_index()
+        
+        # Build co-occurrence network
+        G = nx.Graph()
+        co_occurrence_counts = defaultdict(int)
+        
+        for _, row in family_classifications.iterrows():
+            classes = list(set(row['main_class']))  # Remove duplicates within family
+            if len(classes) > 1:
+                # Add all pairs of classifications in this family
+                for i, class1 in enumerate(classes):
+                    for class2 in classes[i+1:]:
+                        pair = tuple(sorted([class1, class2]))
+                        co_occurrence_counts[pair] += 1
+                        
+                        # Add to network
+                        if co_occurrence_counts[pair] >= 2:  # Minimum threshold
+                            G.add_edge(class1, class2, weight=co_occurrence_counts[pair])
+        
+        # Calculate network metrics
+        network_metrics = {
+            'total_nodes': G.number_of_nodes(),
+            'total_edges': G.number_of_edges(),
+            'network_density': nx.density(G) if G.number_of_nodes() > 1 else 0,
+            'average_clustering': nx.average_clustering(G) if G.number_of_nodes() > 2 else 0
+        }
+        
+        # Find most connected technology areas
+        if G.number_of_nodes() > 0:
+            centrality = nx.degree_centrality(G)
+            betweenness = nx.betweenness_centrality(G)
+            
+            # Top connected nodes
+            top_connected = sorted(centrality.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_bridges = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
+        else:
+            top_connected = []
+            top_bridges = []
+        
+        # Analyze co-occurrence patterns
+        top_cooccurrences = sorted(co_occurrence_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        self.network_graph = G  # Store for visualization
+        
+        network_analysis = {
+            'network_metrics': network_metrics,
+            'top_connected_technologies': top_connected,
+            'top_bridge_technologies': top_bridges,
+            'top_cooccurrences': top_cooccurrences,
+            'cooccurrence_matrix': dict(co_occurrence_counts)
+        }
+        
+        logger.info(f"   ✅ Built network with {network_metrics['total_nodes']} nodes and {network_metrics['total_edges']} edges")
+        logger.info(f"   📊 Network density: {network_metrics['network_density']:.3f}")
+        
+        return network_analysis
+    
+    def _generate_technology_intelligence(self, pattern_analysis: pd.DataFrame, 
+                                        network_analysis: Dict) -> pd.DataFrame:
+        """
+        Generate comprehensive technology intelligence insights.
+        """
+        logger.info("🎯 Generating technology intelligence insights...")
+        
+        # Enhance pattern analysis with network insights
+        enhanced_analysis = pattern_analysis.copy()
+        
+        # Add network centrality measures
+        if network_analysis['top_connected_technologies']:
+            centrality_dict = dict(network_analysis['top_connected_technologies'])
+            enhanced_analysis['network_centrality'] = enhanced_analysis['technology_domain'].apply(
+                lambda x: centrality_dict.get(x[:4], 0)  # Map domain to main class
+            )
+        else:
+            enhanced_analysis['network_centrality'] = 0
+        
+        # Calculate innovation intensity
+        enhanced_analysis['innovation_intensity'] = (
+            enhanced_analysis['unique_classifications'] * enhanced_analysis['avg_quality_score'] / 
+            enhanced_analysis['activity_span']
+        ).round(2)
+        
+        # Technology maturity assessment
+        def assess_technology_maturity(row):
+            if row['activity_span'] > 10 and row['patent_families'] > 5:
+                return 'Mature'
+            elif row['activity_span'] > 5:
+                return 'Developing'
+            else:
+                return 'Emerging'
+        
+        enhanced_analysis['technology_maturity'] = enhanced_analysis.apply(assess_technology_maturity, axis=1)
+        
+        # Strategic importance scoring
+        def calculate_strategic_score(row):
+            score = 0
+            # Volume weight
+            if row['patent_families'] > 10:
+                score += 3
+            elif row['patent_families'] > 5:
+                score += 2
+            elif row['patent_families'] > 1:
+                score += 1
+            
+            # Quality weight
+            if row['avg_quality_score'] > 2.5:
+                score += 2
+            elif row['avg_quality_score'] > 2.0:
+                score += 1
+            
+            # Network importance weight
+            if row['network_centrality'] > 0.1:
+                score += 2
+            elif row['network_centrality'] > 0.05:
+                score += 1
+            
+            return score
+        
+        enhanced_analysis['strategic_score'] = enhanced_analysis.apply(calculate_strategic_score, axis=1)
+        
+        # Strategic category
+        def assign_strategic_category(score: int) -> str:
+            if score >= 6:
+                return 'Core Technology'
+            elif score >= 4:
+                return 'Important Technology'
+            elif score >= 2:
+                return 'Supporting Technology'
+            else:
+                return 'Niche Technology'
+        
+        enhanced_analysis['strategic_category'] = enhanced_analysis['strategic_score'].apply(assign_strategic_category)
+        
+        return enhanced_analysis
+    
+    def generate_classification_intelligence_summary(self) -> Dict:
+        """
+        Generate comprehensive classification intelligence summary.
+        
+        Returns:
+            Dictionary with classification intelligence insights
+        """
+        if self.analyzed_data is None:
+            raise ValueError("No analyzed data available. Run analyze_search_results first.")
+        
+        df = self.analyzed_data
+        logger.info("📋 Generating classification intelligence summary...")
+        
+        total_families = df['patent_families'].sum()
+        top_domain = df.iloc[0] if len(df) > 0 else None
+        
+        summary = {
+            'technology_overview': {
+                'total_patent_families': int(total_families),
+                'total_technology_domains': len(df),
+                'dominant_technology': top_domain['technology_domain'] if top_domain is not None else 'N/A',
+                'dominant_domain_share': float(top_domain['domain_share_pct']) if top_domain is not None else 0,
+                'total_classifications': int(df['unique_classifications'].sum()),
+                'avg_classifications_per_domain': float(df['unique_classifications'].mean())
+            },
+            'domain_distribution': df[['technology_domain', 'patent_families', 'domain_share_pct']].head(10).to_dict('records'),
+            'maturity_analysis': df['technology_maturity'].value_counts().to_dict(),
+            'strategic_categories': df['strategic_category'].value_counts().to_dict(),
+            'innovation_metrics': {
+                'avg_innovation_intensity': float(df['innovation_intensity'].mean()),
+                'most_innovative_domain': df.loc[df['innovation_intensity'].idxmax(), 'technology_domain'] if not df.empty else 'N/A',
+                'core_technologies': len(df[df['strategic_category'] == 'Core Technology']),
+                'emerging_technologies': len(df[df['technology_maturity'] == 'Emerging'])
+            },
+            'temporal_insights': {
+                'earliest_activity': int(df['first_filing_year'].min()) if not df.empty else None,
+                'latest_activity': int(df['latest_filing_year'].max()) if not df.empty else None,
+                'avg_activity_span': float(df['activity_span'].mean()),
+                'most_sustained_domain': df.loc[df['activity_span'].idxmax(), 'technology_domain'] if not df.empty else 'N/A'
+            }
+        }
+        
+        # Add network insights if available
+        if hasattr(self, 'network_graph') and self.network_graph:
+            network_metrics = {
+                'network_nodes': self.network_graph.number_of_nodes(),
+                'network_edges': self.network_graph.number_of_edges(),
+                'network_density': nx.density(self.network_graph),
+                'most_connected_technology': max(nx.degree_centrality(self.network_graph).items(), key=lambda x: x[1])[0] if self.network_graph.number_of_nodes() > 0 else 'N/A'
+            }
+            summary['network_analysis'] = network_metrics
+        
+        self.classification_intelligence = summary
+        return summary
+    
+    def get_top_technologies(self, top_n: int = 10, min_families: int = 1) -> pd.DataFrame:
+        """
+        Get top technology domains with filtering options.
+        
+        Args:
+            top_n: Number of top domains to return
+            min_families: Minimum number of patent families required
+            
+        Returns:
+            Filtered DataFrame with top technology domains
+        """
+        if self.analyzed_data is None:
+            raise ValueError("No analyzed data available. Run analyze_search_results first.")
+        
+        filtered_df = self.analyzed_data[self.analyzed_data['patent_families'] >= min_families].copy()
+        return filtered_df.head(top_n)
+    
+    def get_innovation_hotspots(self, top_n: int = 5) -> pd.DataFrame:
+        """
+        Get innovation hotspots based on multiple criteria.
+        
+        Args:
+            top_n: Number of hotspots to return
+            
+        Returns:
+            DataFrame with innovation hotspots
+        """
+        if self.analyzed_data is None:
+            raise ValueError("No analyzed data available. Run analyze_search_results first.")
+        
+        # Sort by innovation intensity and strategic score
+        hotspots = self.analyzed_data.sort_values(
+            ['innovation_intensity', 'strategic_score'], 
+            ascending=False
+        ).head(top_n)
+        
+        return hotspots[['technology_domain', 'patent_families', 'innovation_intensity', 'strategic_category', 'technology_maturity']]
+    
+    def build_classification_network(self, min_cooccurrence: int = 2) -> nx.Graph:
+        """
+        Build and return the classification co-occurrence network.
+        
+        Args:
+            min_cooccurrence: Minimum co-occurrence threshold for edges
+            
+        Returns:
+            NetworkX graph of technology relationships
+        """
+        if self.network_graph is None:
+            logger.warning("⚠️ No network graph available. Run analyze_search_results first.")
+            return nx.Graph()
+        
+        # Filter edges by minimum co-occurrence
+        filtered_graph = nx.Graph()
+        for u, v, data in self.network_graph.edges(data=True):
+            if data['weight'] >= min_cooccurrence:
+                filtered_graph.add_edge(u, v, **data)
+        
+        return filtered_graph
+
+    # Legacy methods for backward compatibility (deprecated)
     def _clean_classification_codes(self, df: pd.DataFrame, 
                                   ipc1_col: str, ipc2_col: str) -> pd.DataFrame:
         """Clean and standardize IPC/CPC classification codes."""
@@ -439,29 +940,29 @@ class ClassificationAnalyzer:
             'technology_convergence': convergence_analysis,
             'network_intelligence': network_stats,
             'temporal_patterns': df['innovation_period'].value_counts().to_dict() if 'innovation_period' in df.columns else {},
-            'ree_specific_insights': self._analyze_ree_specific_patterns(df)
+            'technology_specific_insights': self._analyze_technology_specific_patterns(df)
         }
         
         self.classification_intelligence = intelligence
         return intelligence
     
-    def _analyze_ree_specific_patterns(self, df: pd.DataFrame) -> Dict:
-        """Analyze REE-specific classification patterns."""
-        ree_patterns = {}
+    def _analyze_technology_specific_patterns(self, df: pd.DataFrame) -> Dict:
+        """Analyze technology-specific classification patterns."""
+        tech_patterns = {}
         
-        # Check for REE-specific codes
-        ree_codes = list(self.REE_CLASSIFICATION_CODES.keys())
-        ree_data = df[df['IPC_1'].str[:11].isin(ree_codes)]
+        # Check for technology-specific codes
+        tech_codes = list(self.TECHNOLOGY_CLASSIFICATION_CODES.keys())
+        tech_data = df[df['IPC_1'].str[:11].isin(tech_codes)]
         
-        if len(ree_data) > 0:
-            ree_patterns = {
-                'ree_specific_records': len(ree_data),
-                'ree_percentage': float(len(ree_data) / len(df) * 100),
-                'ree_domain_distribution': ree_data['domain_1'].value_counts().to_dict(),
-                'top_ree_classifications': ree_data['IPC_1'].value_counts().head(5).to_dict()
+        if len(tech_data) > 0:
+            tech_patterns = {
+                'technology_specific_records': len(tech_data),
+                'technology_percentage': float(len(tech_data) / len(df) * 100),
+                'technology_domain_distribution': tech_data['domain_1'].value_counts().to_dict(),
+                'top_technology_classifications': tech_data['IPC_1'].value_counts().head(5).to_dict()
             }
         
-        return ree_patterns
+        return tech_patterns
     
     def get_innovation_hotspots(self, df: Optional[pd.DataFrame] = None, top_n: int = 10) -> Dict:
         """
@@ -608,14 +1109,17 @@ class ClassificationDataProcessor:
         
         return df
 
-def create_classification_analyzer() -> ClassificationAnalyzer:
+def create_classification_analyzer(patstat_client: Optional[object] = None) -> ClassificationAnalyzer:
     """
     Factory function to create configured classification analyzer.
     
+    Args:
+        patstat_client: Optional PATSTAT client instance
+        
     Returns:
         Configured ClassificationAnalyzer instance
     """
-    return ClassificationAnalyzer()
+    return ClassificationAnalyzer(patstat_client=patstat_client)
 
 def create_classification_processor() -> ClassificationDataProcessor:
     """
@@ -626,49 +1130,3 @@ def create_classification_processor() -> ClassificationDataProcessor:
     """
     return ClassificationDataProcessor()
 
-# Example usage and demo functions
-def demo_classification_analysis():
-    """Demonstrate classification analysis capabilities."""
-    logger.info("🚀 Classification Analysis Demo")
-    
-    # Create sample data
-    np.random.seed(42)
-    sample_data = []
-    
-    ipc_codes = ['C22B19/28', 'C04B18/04', 'H01M10/54', 'C09K11/01', 'H01J09/52']
-    
-    for i in range(50):
-        family_id = 100000 + i
-        filing_year = np.random.randint(2010, 2023)
-        ipc1 = np.random.choice(ipc_codes)
-        ipc2 = np.random.choice(ipc_codes)
-        
-        # Ensure different IPC codes
-        while ipc2 == ipc1:
-            ipc2 = np.random.choice(ipc_codes)
-        
-        sample_data.append((family_id, filing_year, ipc1, ipc2))
-    
-    # Process data
-    processor = create_classification_processor()
-    df = processor.process_patstat_classification_data(sample_data)
-    
-    # Analyze classifications
-    analyzer = create_classification_analyzer()
-    analyzed_df = analyzer.analyze_classification_patterns(df)
-    
-    # Build network
-    network = analyzer.build_classification_network(analyzed_df)
-    
-    # Generate insights
-    intelligence = analyzer.generate_classification_intelligence()
-    hotspots = analyzer.get_innovation_hotspots()
-    
-    logger.info("✅ Demo analysis complete")
-    logger.info(f"🏷️ Dominant domain: {intelligence['overview']['dominant_domain']}")
-    logger.info(f"🕸️ Network nodes: {network.number_of_nodes()}")
-    
-    return analyzer, analyzed_df, intelligence
-
-if __name__ == "__main__":
-    demo_classification_analysis()

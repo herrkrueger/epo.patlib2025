@@ -374,7 +374,7 @@ def test_setup_functions():
     print_section('⚙️ Test 8: Setup Utility Functions')
     
     try:
-        from data_access import setup_patstat_connection, setup_epo_ops_client, setup_full_pipeline, setup_citation_analysis
+        from data_access import setup_patstat_connection, setup_epo_ops_client, setup_full_pipeline, setup_citation_analysis, setup_geographic_analysis
         import tempfile
         
         # Test PATSTAT setup
@@ -402,10 +402,81 @@ def test_setup_functions():
                 print(f'⚠️ Full pipeline setup (expected config issues): {e}')
                 print('   This is expected behavior without full configuration')
         
+        # Test geographic analysis setup
+        print_subsection('Geographic Analysis Setup')
+        geo_mapper = setup_geographic_analysis()
+        print('✅ Geographic analysis setup successful')
+        print(f'   Countries loaded: {len(geo_mapper.country_cache)}')
+        
         return True
         
     except Exception as e:
         print(f'❌ Setup functions test failed: {e}')
+        import traceback
+        traceback.print_exc()
+        return False
+
+def test_geographic_data_access():
+    """Test 9: Geographic data access and country mapping."""
+    print_section('🌍 Test 9: Geographic Data Access')
+    
+    try:
+        # Test country mapper imports
+        print_subsection('Country Mapper Imports')
+        from data_access.country_mapper import PatentCountryMapper, create_country_mapper, get_enhanced_country_mapping
+        print('✅ Country mapper imports successful')
+        
+        # Test country mapper creation
+        print_subsection('Country Mapper Creation')
+        mapper = create_country_mapper()
+        print(f'✅ Country mapper created with {len(mapper.country_cache)} countries')
+        print(f'   Regional groups: {len(mapper.regional_groups)}')
+        print(f'   Data sources: {set([info.get("source", "unknown") for info in mapper.country_cache.values()])}')
+        
+        # Test country information retrieval
+        print_subsection('Country Information Retrieval')
+        test_countries = ['US', 'DE', 'JP', 'CN', 'EP', 'XX']
+        for country_code in test_countries:
+            info = mapper.get_country_info(country_code)
+            print(f'   {country_code}: {info["name"]} - {info["continent"]} - Groups: {len(info.get("regional_groups", []))}')
+        
+        # Test regional groupings
+        print_subsection('Regional Groupings')
+        for group_name in ['ip5_offices', 'major_economies', 'eu_members']:
+            countries = mapper.get_countries_in_group(group_name)
+            print(f'   {group_name}: {len(countries)} countries')
+        
+        # Test mapping DataFrame creation
+        print_subsection('Mapping DataFrame Creation')
+        mapping_df = mapper.create_mapping_dataframe()
+        print(f'✅ Mapping DataFrame created: {len(mapping_df)} rows x {len(mapping_df.columns)} columns')
+        print(f'   Columns: {list(mapping_df.columns)}')
+        
+        # Test enhanced mapping function
+        print_subsection('Enhanced Mapping Function')
+        enhanced_df = get_enhanced_country_mapping()
+        print(f'✅ Enhanced mapping: {len(enhanced_df)} countries')
+        
+        # Test data_access module exports
+        print_subsection('Data Access Integration')
+        from data_access import setup_geographic_analysis
+        test_mapper = setup_geographic_analysis()
+        print(f'✅ Geographic analysis setup: {len(test_mapper.country_cache)} countries')
+        
+        # Test PATSTAT integration (if available)
+        print_subsection('PATSTAT Integration Test')
+        try:
+            from data_access.patstat_client import PatstatClient
+            patstat_client = PatstatClient('PROD')
+            mapper_with_patstat = create_country_mapper(patstat_client)
+            print(f'✅ PATSTAT-enhanced mapper: {len(mapper_with_patstat.country_cache)} countries')
+        except Exception as e:
+            print(f'⚠️ PATSTAT integration (optional): {e}')
+        
+        return True
+        
+    except Exception as e:
+        print(f'❌ Geographic data access test failed: {e}')
         import traceback
         traceback.print_exc()
         return False
@@ -456,6 +527,7 @@ def main():
         test_results['Market Correlation'] = test_market_correlation()
         test_results['Citation Analysis'] = test_citation_analysis()
         test_results['Setup Functions'] = test_setup_functions()
+        test_results['Geographic Data Access'] = test_geographic_data_access()
         
     except KeyboardInterrupt:
         print('\n⚠️ Test execution interrupted by user')

@@ -4,7 +4,7 @@ Configuration Testing Script for Patent Analysis Platform
 Enhanced from EPO PATLIB 2025 Live Demo Code
 
 This script validates all configuration files, centralized search patterns,
-and environment handling. Run from CLI to verify configuration integrity.
+environment handling, and geographic configuration integration.
 
 Usage:
     python config/test_config.py
@@ -378,6 +378,85 @@ def test_data_access_integration():
         traceback.print_exc()
         return False
 
+def test_geographic_configuration():
+    """Test 8: Geographic configuration and country mapping integration."""
+    print_section('🌍 Test 8: Geographic Configuration')
+    
+    try:
+        # Test geographic config loading
+        print_subsection('Geographic Configuration Loading')
+        from config import ConfigurationManager
+        
+        config_manager = ConfigurationManager()
+        geographic_config_path = config_manager.config_dir / 'geographic_config.yaml'
+        
+        if geographic_config_path.exists():
+            print(f'   ✅ Geographic config file exists: {geographic_config_path}')
+        else:
+            print(f'   ❌ Geographic config file missing: {geographic_config_path}')
+            return False
+        
+        # Test country mapper integration
+        print_subsection('Country Mapper Integration')
+        try:
+            from data_access.country_mapper import create_country_mapper, PatentCountryMapper
+            print('   ✅ Country mapper imports successful')
+            
+            # Create country mapper instance
+            mapper = create_country_mapper()
+            print(f'   ✅ Country mapper created with {len(mapper.country_cache)} countries')
+            print(f'   ✅ Regional groups loaded: {len(mapper.regional_groups)}')
+            
+            # Test specific country mappings
+            us_info = mapper.get_country_info('US')
+            print(f'   ✅ US mapping: {us_info["name"]} - {us_info["continent"]}')
+            
+            de_info = mapper.get_country_info('DE')
+            print(f'   ✅ DE mapping: {de_info["name"]} - {de_info["continent"]}')
+            
+            # Test regional groupings
+            ip5_countries = mapper.get_countries_in_group('ip5_offices')
+            print(f'   ✅ IP5 offices: {len(ip5_countries)} countries')
+            
+            # Test country group membership
+            us_groups = mapper.get_country_groups('US')
+            print(f'   ✅ US regional groups: {len(us_groups)} groups')
+            
+            # Test data_access module exports
+            from data_access import setup_geographic_analysis
+            test_mapper = setup_geographic_analysis()
+            print('   ✅ data_access geographic setup function working')
+            
+        except Exception as e:
+            print(f'   ❌ Country mapper test failed: {e}')
+            return False
+        
+        # Test geographic processor integration
+        print_subsection('Geographic Processor Integration')
+        try:
+            from processors.geographic import create_geographic_analyzer
+            analyzer = create_geographic_analyzer()
+            print('   ✅ Geographic analyzer created with enhanced mapping')
+            
+            # Verify analyzer has country mapper
+            if hasattr(analyzer, 'country_mapper'):
+                print(f'   ✅ Analyzer has country mapper with {len(analyzer.country_mapper.country_cache)} countries')
+            else:
+                print('   ❌ Analyzer missing country mapper')
+                return False
+                
+        except Exception as e:
+            print(f'   ❌ Geographic processor test failed: {e}')
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f'❌ Geographic configuration test failed: {e}')
+        import traceback
+        traceback.print_exc()
+        return False
+
 def generate_test_report(results: Dict[str, bool]) -> str:
     """Generate a comprehensive test report."""
     print_section('📋 Test Results Summary', '=', 60)
@@ -423,6 +502,7 @@ def main():
         test_results['Configuration Reorganization'] = test_configuration_reorganization()
         test_results['Environment Handling'] = test_environment_handling()
         test_results['Data Access Integration'] = test_data_access_integration()
+        test_results['Geographic Configuration'] = test_geographic_configuration()
         
     except KeyboardInterrupt:
         print('\n⚠️ Test execution interrupted by user')

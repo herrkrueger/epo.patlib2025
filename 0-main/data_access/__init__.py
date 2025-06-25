@@ -10,6 +10,7 @@ Technology-agnostic patent analysis using centralized configuration.
 from .patstat_client import PatstatClient, PatentSearcher, CitationAnalyzer
 from .ops_client import EPOOPSClient, PatentValidator, create_search_queries, correlate_patent_market_data
 from .cache_manager import PatentDataCache, PatstatQueryCache, EPSOPSCache, AnalysisCache, create_cache_manager, create_specialized_caches
+from .country_mapper import PatentCountryMapper, create_country_mapper, get_enhanced_country_mapping
 
 __version__ = "1.0.0"
 
@@ -31,7 +32,12 @@ __all__ = [
     'EPSOPSCache', 
     'AnalysisCache',
     'create_cache_manager',
-    'create_specialized_caches'
+    'create_specialized_caches',
+    
+    # Geographic data
+    'PatentCountryMapper',
+    'create_country_mapper',
+    'get_enhanced_country_mapping'
 ]
 
 # Quick setup functions for common use cases
@@ -79,6 +85,18 @@ def setup_epo_ops_client(consumer_key: str = None, consumer_secret: str = None):
     validator = PatentValidator(client)
     return client, validator
 
+def setup_geographic_analysis(patstat_client=None):
+    """
+    Setup geographic analysis with enhanced country mapping.
+    
+    Args:
+        patstat_client: Optional PATSTAT client for TLS801_COUNTRY access
+        
+    Returns:
+        Configured PatentCountryMapper instance
+    """
+    return create_country_mapper(patstat_client)
+
 def setup_full_pipeline(cache_dir: str = "./cache", patstat_env: str = 'PROD'):
     """
     Setup complete patent analysis pipeline with all components including citation analysis.
@@ -100,6 +118,9 @@ def setup_full_pipeline(cache_dir: str = "./cache", patstat_env: str = 'PROD'):
     # Setup EPO OPS
     ops_client, patent_validator = setup_epo_ops_client()
     
+    # Setup geographic analysis
+    country_mapper = setup_geographic_analysis(patstat_client)
+    
     return {
         'cache_manager': cache_manager,
         'caches': specialized_caches,
@@ -107,5 +128,6 @@ def setup_full_pipeline(cache_dir: str = "./cache", patstat_env: str = 'PROD'):
         'patent_searcher': patent_searcher,
         'citation_analyzer': citation_analyzer,
         'ops_client': ops_client,
-        'patent_validator': patent_validator
+        'patent_validator': patent_validator,
+        'country_mapper': country_mapper
     }
