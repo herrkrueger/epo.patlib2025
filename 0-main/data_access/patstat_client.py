@@ -518,6 +518,64 @@ class PatentSearcher:
         # Load search strategies
         self.search_strategies = self.search_config.get('search_strategies', {})
         self.quality_thresholds = self.search_config.get('quality_thresholds', {})
+        
+        # Store technology areas for selective searching
+        self.technology_areas = technology_areas
+    
+    def get_available_technology_areas(self) -> list:
+        """Get list of available technology areas from configuration."""
+        return list(self.technology_areas.keys())
+    
+    def get_cpc_codes_for_technology(self, technology_area: str) -> list:
+        """Get CPC codes for a specific technology area."""
+        area_config = self.technology_areas.get(technology_area, {})
+        return area_config.get('codes', [])
+    
+    def execute_technology_specific_search(self, 
+                                         technology_areas: list,
+                                         start_date: str = '2010-01-01',
+                                         end_date: str = '2024-12-31',
+                                         focused_search: bool = True) -> pd.DataFrame:
+        """
+        Execute search for specific technology areas only.
+        
+        Args:
+            technology_areas: List of technology area names to search
+            start_date: Search start date (YYYY-MM-DD)
+            end_date: Search end date (YYYY-MM-DD)
+            focused_search: Use focused keywords for better performance
+            
+        Returns:
+            DataFrame with patent search results
+        """
+        if not self.client.is_connected():
+            logger.error("PATSTAT not connected - cannot execute search")
+            raise RuntimeError("PATSTAT connection is required for patent search")
+        
+        # Get CPC codes for selected technology areas
+        selected_cpc_codes = []
+        for area in technology_areas:
+            area_codes = self.get_cpc_codes_for_technology(area)
+            selected_cpc_codes.extend(area_codes)
+        
+        if not selected_cpc_codes:
+            logger.warning(f"No CPC codes found for technology areas: {technology_areas}")
+            return pd.DataFrame(columns=['appln_id', 'appln_nr', 'appln_filing_date', 'docdb_family_id', 'earliest_filing_year', 'search_method', 'quality_score', 'filing_year'])
+        
+        logger.debug(f"🔬 Technology-specific search: {technology_areas}")
+        logger.debug(f"📊 Using {len(selected_cpc_codes)} CPC codes from selected areas")
+        
+        # Temporarily override the instance CPC codes for this search
+        original_cpc_codes = self.cpc_codes
+        self.cpc_codes = selected_cpc_codes
+        
+        try:
+            # Execute search with selected CPC codes
+            result = self.execute_comprehensive_search(start_date, end_date, focused_search)
+            return result
+        finally:
+            # Restore original CPC codes
+            self.cpc_codes = original_cpc_codes
     
     def execute_comprehensive_search(self, 
                                    start_date: str = '2010-01-01',
