@@ -689,15 +689,8 @@ class PatentSearcher:
         and_ = self.sql_funcs['and_']
         func = self.sql_funcs['func']
         
-        # Use classification codes from config
-        classification_config = self.search_config.get('cpc_classifications', {})
-        technology_areas = classification_config.get('technology_areas', {})
-        focused_codes = []
-        for area_name, area_config in technology_areas.items():
-            if isinstance(area_config, dict) and 'codes' in area_config:
-                category_codes = area_config['codes']
-                if isinstance(category_codes, list):
-                    focused_codes.extend(category_codes[:2])  # Take first 2 from each category
+        # Use instance CPC codes (supports technology-specific search)
+        focused_codes = self.cpc_codes[:10] if self.cpc_codes else []  # Take first 10 for performance
         
         # Configuration is required - no fallback
         if not focused_codes:

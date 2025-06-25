@@ -24,9 +24,12 @@ def test_complete_platform():
     print("🔍 Step 1: Patent Search...")
     patstat = PatstatClient(environment='PROD')
     searcher = PatentSearcher(patstat)
-    search_results = searcher.execute_comprehensive_search(
+    
+    # Test technology-specific search with proper date range
+    search_results = searcher.execute_technology_specific_search(
+        technology_areas=['rare_earth_elements'],
         start_date='2024-01-01', 
-        end_date='2024-01-02', 
+        end_date='2024-01-07',  # Full week for better results
         focused_search=True
     )
     print(f"✅ Found {len(search_results)} patents")
