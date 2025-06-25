@@ -1,0 +1,394 @@
+# Database Configuration for Patent Analysis Platform
+# Enhanced from EPO PATLIB 2025 Live Demo Code
+
+# PATSTAT Database Configuration
+patstat:
+  # Environment Detection and Configuration
+  environments:
+    # TIP Environment (default when available)
+    tip_environment:
+      enabled: true
+      use_patstat_client_module: true  # Use epo.tipdata.patstat.PatstatClient
+      environment: "PROD"
+      project_id: "p-epo-tip-prj-3a1f"
+      dataset_id: "p_epo_tip_euwe4_bqd_patstata"
+      authentication: "automatic"  # Handled by TIP environment
+    
+    # External Environment (for use outside TIP)
+    external_environment:
+      enabled: false
+      use_patstat_client_module: false
+      service_account_path: "${ENV:GOOGLE_APPLICATION_CREDENTIALS}"
+      project_id: "${ENV:BIGQUERY_PROJECT_ID}"
+      dataset_id: "${ENV:BIGQUERY_DATASET_ID}"
+      authentication: "service_account"
+  
+  # Active Configuration (will be selected automatically)
+  connection:
+    # Environment configuration - PROVEN WORKING PATTERNS
+    environment: "PROD"  # CRITICAL: Use PROD for full dataset access
+    project_id: "p-epo-tip-prj-3a1f"
+    dataset_id: "p_epo_tip_euwe4_bqd_patstata"
+    
+    # Connection Parameters
+    timeout: 300  # seconds for complex queries
+    max_retries: 3
+    retry_delay: 5  # seconds
+    pool_size: 5
+    max_overflow: 10
+    echo: false  # Set to true for SQL debugging
+  
+  # Query Optimization
+  query_optimization:
+    use_query_cache: true
+    enable_query_plan_cache: true
+    use_materialized_views: false
+    optimize_joins: true
+    use_partitioning: true
+    
+    # BigQuery Specific Optimizations
+    bigquery:
+      use_legacy_sql: false
+      job_timeout_ms: 300000  # 5 minutes
+      maximum_bytes_billed: 1073741824  # 1GB limit
+      use_query_cache: true
+      dry_run_queries: false
+  
+  # Table Schema and Relationships
+  tables:
+    # Core Application Tables
+    applications:
+      table_name: "TLS201_APPLN"
+      primary_key: "appln_id"
+      key_columns:
+        - "appln_id"
+        - "docdb_family_id" 
+        - "appln_nr"
+        - "appln_filing_date"
+        - "earliest_filing_year"
+        - "docdb_family_size"
+      indexes:
+        - "docdb_family_id"
+        - "earliest_filing_year"
+        - "appln_filing_date"
+    
+    # Title Information
+    titles:
+      table_name: "TLS202_APPLN_TITLE"
+      primary_key: "appln_id"
+      key_columns:
+        - "appln_id"
+        - "appln_title"
+        - "appln_title_lg"
+      foreign_keys:
+        - table: "TLS201_APPLN"
+          column: "appln_id"
+    
+    # Abstract Information
+    abstracts:
+      table_name: "TLS203_APPLN_ABSTR"
+      primary_key: "appln_id"
+      key_columns:
+        - "appln_id"
+        - "appln_abstract"
+        - "appln_abstract_lg"
+      foreign_keys:
+        - table: "TLS201_APPLN"
+          column: "appln_id"
+    
+    # IPC Classifications
+    ipc_classifications:
+      table_name: "TLS209_APPLN_IPC"
+      key_columns:
+        - "appln_id"
+        - "ipc_class_symbol"
+        - "ipc_class_level"
+      foreign_keys:
+        - table: "TLS201_APPLN"
+          column: "appln_id"
+      indexes:
+        - "ipc_class_symbol"
+    
+    # CPC Classifications
+    cpc_classifications:
+      table_name: "TLS224_APPLN_CPC"
+      key_columns:
+        - "appln_id"
+        - "cpc_class_symbol"
+        - "cpc_scheme"
+      foreign_keys:
+        - table: "TLS201_APPLN"
+          column: "appln_id"
+      indexes:
+        - "cpc_class_symbol"
+    
+    # Citation Information
+    citations:
+      table_name: "TLS212_CITATION"
+      key_columns:
+        - "pat_publn_id"
+        - "cited_pat_publn_id"
+        - "cited_appln_id"
+        - "citn_replenished"
+      indexes:
+        - "pat_publn_id"
+        - "cited_pat_publn_id"
+    
+    # Person Information (Applicants/Inventors)
+    persons:
+      table_name: "TLS206_PERSON"
+      primary_key: "person_id"
+      key_columns:
+        - "person_id"
+        - "psn_name"
+        - "person_ctry_code"
+        - "nuts_level"
+      indexes:
+        - "person_ctry_code"
+        - "psn_name"
+    
+    # Person-Application Relationships
+    person_applications:
+      table_name: "TLS207_PERS_APPLN"
+      key_columns:
+        - "person_id"
+        - "appln_id"
+        - "applt_seq_nr"
+        - "invt_seq_nr"
+      foreign_keys:
+        - table: "TLS206_PERSON"
+          column: "person_id"
+        - table: "TLS201_APPLN"
+          column: "appln_id"
+      indexes:
+        - "person_id"
+        - "appln_id"
+        - "applt_seq_nr"
+
+# REE-Specific Query Patterns
+ree_queries:
+  # Proven Working Search Strategies
+  search_strategies:
+    # Three-step search: Keywords + Classification intersection
+    high_quality_intersection:
+      description: "High-quality patents matching both keywords and classifications"
+      steps:
+        1: "keyword_search"
+        2: "classification_search" 
+        3: "intersection_analysis"
+      quality_threshold: 0.8
+    
+    # Comprehensive keyword search
+    comprehensive_keywords:
+      description: "Broad keyword-based search across abstracts and titles"
+      tables: ["TLS201_APPLN", "TLS202_APPLN_TITLE", "TLS203_APPLN_ABSTR"]
+      search_fields: ["appln_title", "appln_abstract"]
+      quality_threshold: 0.6
+    
+    # Classification-focused search
+    classification_focused:
+      description: "Technology classification-based search"
+      tables: ["TLS201_APPLN", "TLS209_APPLN_IPC", "TLS224_APPLN_CPC"]
+      classification_levels: [8, 11]  # Character lengths for IPC matching
+      quality_threshold: 0.7
+  
+  # Query Templates
+  templates:
+    # Applicant ranking query
+    applicant_ranking: |
+      SELECT 
+        p.psn_name,
+        COUNT(DISTINCT a.docdb_family_id) as distinct_patent_families,
+        MIN(a.earliest_filing_year) as first_filing_year,
+        MAX(a.earliest_filing_year) as latest_filing_year
+      FROM `{project}.{dataset}.TLS201_APPLN` a
+      JOIN `{project}.{dataset}.TLS207_PERS_APPLN` pa ON a.appln_id = pa.appln_id  
+      JOIN `{project}.{dataset}.TLS206_PERSON` p ON pa.person_id = p.person_id
+      WHERE 
+        pa.applt_seq_nr != 0
+        AND a.docdb_family_id IN ({family_ids})
+        AND a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+      GROUP BY p.psn_name
+      ORDER BY distinct_patent_families DESC
+      LIMIT {limit}
+    
+    # Geographic analysis query  
+    geographic_analysis: |
+      SELECT 
+        a.docdb_family_id,
+        a.docdb_family_size,
+        a.earliest_filing_year,
+        p.person_ctry_code,
+        p.psn_name as applicant_name,
+        pa.applt_seq_nr
+      FROM `{project}.{dataset}.TLS201_APPLN` a
+      JOIN `{project}.{dataset}.TLS207_PERS_APPLN` pa ON a.appln_id = pa.appln_id
+      JOIN `{project}.{dataset}.TLS206_PERSON` p ON pa.person_id = p.person_id  
+      WHERE 
+        a.docdb_family_id IN ({family_ids})
+        AND a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+        AND pa.applt_seq_nr = 1
+      ORDER BY a.earliest_filing_year DESC
+    
+    # Technology co-occurrence query
+    technology_cooccurrence: |
+      SELECT 
+        a.docdb_family_id as family_id,
+        a.earliest_filing_year as filing_year,
+        ipc1.ipc_class_symbol as IPC_1,
+        ipc2.ipc_class_symbol as IPC_2
+      FROM `{project}.{dataset}.TLS201_APPLN` a
+      JOIN `{project}.{dataset}.TLS209_APPLN_IPC` ipc1 ON a.appln_id = ipc1.appln_id
+      JOIN `{project}.{dataset}.TLS209_APPLN_IPC` ipc2 ON a.appln_id = ipc2.appln_id  
+      WHERE 
+        a.docdb_family_id IN ({family_ids})
+        AND a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+        AND ipc1.ipc_class_symbol > ipc2.ipc_class_symbol
+        AND LEFT(ipc1.ipc_class_symbol, 8) != LEFT(ipc2.ipc_class_symbol, 8)
+      ORDER BY a.earliest_filing_year DESC
+
+# Local Database Configuration (for caching and analysis)
+local_database:
+  # SQLite Configuration for Local Caching
+  sqlite:
+    database_path: "./cache/patent_analysis.db"
+    connection_timeout: 30
+    enable_wal: true  # Write-Ahead Logging for better performance
+    page_size: 4096
+    cache_size: 10000  # Number of pages to cache
+    
+    # Table Definitions for Local Cache
+    cache_tables:
+      patent_families:
+        columns:
+          - "family_id INTEGER PRIMARY KEY"
+          - "family_size INTEGER"
+          - "filing_year INTEGER"
+          - "search_method TEXT"
+          - "quality_score REAL"
+          - "cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        indexes:
+          - "filing_year"
+          - "quality_score"
+      
+      applicant_cache:
+        columns:
+          - "id INTEGER PRIMARY KEY AUTOINCREMENT"
+          - "applicant_name TEXT"
+          - "country_code TEXT"
+          - "patent_families INTEGER"
+          - "market_share REAL"
+          - "cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        indexes:
+          - "applicant_name"
+          - "country_code"
+      
+      analysis_results:
+        columns:
+          - "id INTEGER PRIMARY KEY AUTOINCREMENT"
+          - "analysis_type TEXT"
+          - "analysis_date TIMESTAMP"
+          - "parameters TEXT"  # JSON
+          - "results TEXT"     # JSON
+          - "cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        indexes:
+          - "analysis_type"
+          - "analysis_date"
+
+# Data Quality and Validation
+data_quality:
+  # Validation Rules
+  validation_rules:
+    patent_families:
+      min_family_size: 1
+      max_family_size: 1000
+      valid_filing_years: [1980, 2025]
+      required_fields: ["docdb_family_id", "earliest_filing_year"]
+    
+    applicants:
+      min_name_length: 2
+      max_name_length: 500
+      valid_country_codes: ["CN", "US", "JP", "DE", "KR", "FR", "GB", "CA", "AU", "IT"]
+      exclude_patterns: ["NULL", "UNKNOWN", ""]
+    
+    classifications:
+      ipc_code_format: "^[A-H][0-9]{2}[A-Z][0-9 ]{2,}[0-9]{2,}$"
+      cpc_code_format: "^[A-HY][0-9]{2}[A-Z][0-9 ]{2,}[0-9]{2,}$"
+      min_code_length: 8
+      max_code_length: 15
+  
+  # Data Cleaning Rules
+  cleaning_rules:
+    applicant_names:
+      remove_patterns: ["INC", "CORP", "LTD", "GMBH", "SA"]
+      standardize_case: "upper"
+      remove_extra_spaces: true
+      max_length: 200
+    
+    country_codes:
+      normalize_to_iso2: true
+      handle_unknown: "OTHER"
+      valid_codes_only: true
+
+# Performance Monitoring
+performance:
+  # Query Performance Tracking
+  monitoring:
+    enable_query_logging: true
+    log_slow_queries: true
+    slow_query_threshold: 30  # seconds
+    track_memory_usage: true
+    alert_on_timeout: true
+  
+  # Performance Optimization
+  optimization:
+    enable_connection_pooling: true
+    use_prepared_statements: true
+    optimize_batch_operations: true
+    cache_query_plans: true
+    
+    # BigQuery Specific
+    bigquery_optimization:
+      use_clustering: true
+      use_partitioning: true
+      optimize_joins: true
+      use_approximate_aggregations: false
+
+# Backup and Recovery
+backup:
+  # Local Cache Backup
+  local_backup:
+    enabled: true
+    backup_interval: "daily"
+    backup_retention: "30_days"
+    backup_location: "./backups"
+    compress_backups: true
+  
+  # Analysis Results Backup
+  analysis_backup:
+    enabled: true
+    export_format: ["json", "csv"]
+    backup_critical_results: true
+    retention_policy: "90_days"
+
+# Security Configuration
+security:
+  # Database Security
+  database_security:
+    encrypt_connections: true
+    validate_ssl_certificates: true
+    connection_timeout: 30
+    max_connections: 100
+  
+  # Access Control
+  access_control:
+    require_authentication: true
+    audit_database_access: false
+    restrict_table_access: true
+    allowed_operations: ["SELECT"]  # Read-only for PATSTAT
+  
+  # Data Protection
+  data_protection:
+    anonymize_personal_data: false  # Applicant names are public
+    encrypt_local_cache: false
+    secure_delete: true
