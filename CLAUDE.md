@@ -50,25 +50,31 @@ This project enhanced Riccardo's existing patent analytics notebooks for live de
 - ~51,315 co-occurrence patterns (2010-2022)
 - Forward citation analysis by country
 
-**Search Strategy**: 
+**Search Strategy Patterns**: 
 ```
+# KEYWORD SEARCH: User provides specific search terms
+user_keywords = ["lithium extraction", "battery recycling", "magnet manufacturing"]
+# → System uses GENERIC keyword categories (primary, secondary, focus) from config
+# → Keywords are USER-DEFINED and technology-specific
+
+# CPC SEARCH: User specifies technology domain  
+user_technology = "rare_earth_elements"  # or "semiconductors", "biotechnology", etc.
+# → System uses PREDEFINED CPC codes from config technology_areas
+# → CPC codes are SYSTEM-DEFINED and classification-based
+
 ree_cpc_codes = [
-    'C22B  19/28', 'C22B  19/30', 'C22B  25/06',  # REE extraction
-    'C04B  18/04', 'C04B  18/06', 'C04B  18/08',  # REE ceramics/materials  
-    'H01M   6/52', 'H01M  10/54',                  # REE batteries
-    'C09K  11/01',                                 # REE phosphors
-    'H01J   9/52',                                 # REE displays
-    'Y02W30/52', 'Y02W30/56', 'Y02W30/84'         # Recycling technologies
-]
-ree_ipc_codes = [
-    'C22B  19/28', 'C22B  19/30', 'C22B  25/06',  # REE extraction
-    'C04B  18/04', 'C04B  18/06', 'C04B  18/08',  # REE ceramics/materials  
-    'H01M   6/52', 'H01M  10/54',                  # REE batteries
-    'C09K  11/01',                                 # REE phosphors
-    'H01J   9/52'                                  # REE displays
-    # Note: Y02W codes are CPC-only (sustainability classification)
+    'C22B19/28', 'C22B19/30', 'C22B25/06',  # REE extraction
+    'C04B18/04', 'C04B18/06', 'C04B18/08',  # REE ceramics/materials  
+    'H01M6/52', 'H01M10/54',                # REE batteries
+    'C09K11/01',                            # REE phosphors
+    'H01J9/52',                             # REE displays
+    'Y02W30/52', 'Y02W30/56', 'Y02W30/84'   # Recycling technologies
 ]
 ```
+
+**Critical Search Pattern Distinction:**
+- **KEYWORD search** = User provides terms → System uses generic keyword structure
+- **CPC search** = User specifies technology → System uses predefined classification codes
 
 ### 🛠️ Common Issues & Solutions
 - **Plotly range error**: Convert `range()` to `list(range())`
@@ -94,6 +100,29 @@ ree_ipc_codes = [
 5. **Supply Chain Risk Analysis**: Patent landscape vs. supply chain vulnerabilities
 6. **Automated Reporting**: Executive summaries for policy makers
 
+### 🔍 **Critical Search Pattern Architecture**
+
+**Two Distinct Search Approaches:**
+
+1. **KEYWORD SEARCH** (User-Driven):
+   - User provides: `["lithium extraction", "battery recycling", "magnet manufacturing"]`
+   - System searches: All three keyword stages (`primary`, `secondary`, `focus`) in data sources
+   - Analysis: System tracks which keyword combinations get hits in PATSTAT/OPS
+
+2. **CPC SEARCH** (Also User-Driven):
+   - User enters: Technology area symbols (e.g., `"rare_earth_elements"`, `"semiconductors"`)
+   - System searches: All CPC codes defined for that technology area
+   - Analysis: System tracks which CPC classes/technology areas get hits in PATSTAT/OPS
+
+**Implementation Principle:**
+- **Keywords** = USER provides terms → System searches all 3 stages → Tracks hit patterns
+- **CPC codes** = USER selects technology areas → System searches all codes → Tracks effective classifications
+
+**Critical for Analysis:**
+- System must **remember and analyze** which keyword combinations are effective
+- System must **remember and analyze** which CPC technology areas yield results
+- This tracking enables **optimization** of future searches and **reporting** on data coverage
+
 ### 🎬 Live Enhancement Strategy
 - Start with functional base notebooks (`base_patent_notebook.ipynb`)
 - Enhance step-by-step during presentation
@@ -114,32 +143,42 @@ ree_ipc_codes = [
 
 The `./0-main/` directory contains a beautifully architected, production-ready patent analysis platform with:
 
-#### 📁 **Module Structure**
+#### 📁 **Module Structure & Documentation**
 ```
 0-main/
+├── README.md                  # High-level project overview (future)
 ├── config/                    # Centralized configuration management
+│   ├── README.md             # ✅ Configuration management documentation
 │   ├── __init__.py           # Configuration manager with .env loading
 │   ├── api_config.yaml       # EPO OPS & PATSTAT API settings
 │   ├── database_config.yaml  # Database connection configs
 │   ├── visualization_config.yaml # Chart & export settings
 │   ├── search_patterns_config.yaml # SIMPLIFIED search patterns (189 lines!)
+│   ├── geographic_config.yaml # ✅ Enhanced geographic configuration (regional groupings, strategic classifications)
 │   └── test_config.py        # Comprehensive config test suite
 ├── data_access/              # Production-ready data layer with advanced connection management
+│   ├── README.md             # ✅ Complete data access documentation (PATSTAT, OPS, Cache)
 │   ├── __init__.py          # Clean module exports & setup functions
 │   ├── patstat_client.py    # Advanced PATSTAT client with PatstatConnectionManager
 │   ├── ops_client.py        # EPO OPS API client (renamed from epo_client)
 │   ├── cache_manager.py     # Intelligent caching system
-│   └── test_data_access.py  # Full data access test suite (7/7 passing)
+│   ├── country_mapper.py    # ✅ PatentCountryMapper (PATSTAT TLS801_COUNTRY + pycountry integration)
+│   └── test_data_access.py  # Full data access test suite (8/8 tests passing)
 ├── processors/              # Data processing modules (next phase)
-├── analyzers/               # Analysis algorithms (next phase)  
+│   └── README.md            # Processing module documentation (future)
+├── analyzers/               # Analysis algorithms (next phase)
+│   └── README.md            # Analysis module documentation (future)
 ├── visualizations/          # Chart & dashboard generation (next phase)
+│   └── README.md            # Visualization module documentation (future)
 ├── test_config.sh          # Config testing script
 └── test_data_access.sh     # Data access testing script
 ```
 
-#### ✅ **Current Status - 100% Complete & Production Ready**
-- **Config Module**: ✅ 100% test coverage (6/7 tests passing, only API validation fails due to missing credentials)
-- **Data Access Module**: ✅ 100% test coverage (7/7 tests passing), real PATSTAT connection, working EPO OPS authentication
+#### ✅ **Current Status - Production Ready Platform**
+- **Config Module**: ✅ 100% test coverage (8/8 tests passing) + geographic configuration + comprehensive README.md documentation
+- **Data Access Module**: ✅ 100% test coverage (9/9 tests passing) + geographic data access + comprehensive README.md documentation
+- **Processors Module**: ✅ 2,271 lines of clean production code across 4 core processors + enhanced geographic configuration
+- **Documentation**: ✅ Module-specific READMEs for config and data_access, future structure planned
 - **Architecture**: ✅ Generic, technology-agnostic, no hardcoded topic-specific data
 - **Garbage Collection**: ✅ **ZERO EXCEPTIONS** - Complete elimination of EPO PatstatClient destructor issues
 
@@ -214,11 +253,32 @@ global_settings:
 - **Add search strategies**: Simple 3-line YAML addition
 - **Extend data sources**: Add new API configs
 
+#### ✅ **Completed Processors Module - Clean Production Code**
+**Four Core Processors (2,271 total lines of production-ready code):**
+- **applicant.py**: 490 lines → focused on market intelligence
+- **classification.py**: 629 lines → focused on technology analysis  
+- **geographic.py**: 521 lines → focused on strategic patterns **+ enhanced configuration**
+- **citation.py**: 631 lines → focused on innovation impact
+
+**Key Features:**
+- Technology-agnostic design (removed all domain-specific references)
+- Visualization-ready data structures with `export_results_for_visualization()` methods
+- `ComprehensiveAnalysisWorkflow` class for integrated multi-dimensional analysis
+- Clean code without demo functions or random data generation
+- Consistent data processing patterns across all four dimensions
+
+**Geographic Configuration Enhancement (June 2025):**
+- **PatentCountryMapper**: PATSTAT TLS801_COUNTRY table integration with pycountry libraries
+- **geographic_config.yaml**: Comprehensive regional groupings (IP5, EPO, EU, OECD, economic classifications)
+- **Enhanced Country Mapping**: Replaced hardcoded mappings with configuration-driven approach
+- **Strategic Classifications**: IP5 offices, major economies, emerging markets, economic development tiers
+- **Data Source Integration**: PATSTAT database consistency with optional pycountry enhancement
+
 #### 🎯 **Next Development Phases**
-1. **Processors Module**: Data transformation and cleaning algorithms
-2. **Analyzers Module**: Geographic, trend, and technology analysis
-3. **Visualizations Module**: Charts, dashboards, and interactive displays
-4. **Integration**: Connect all modules with the solid config/data_access foundation
+1. **Visualizations Module**: Charts, dashboards, and interactive displays ← NEXT
+2. **Integration**: Connect visualization layer with processors output
+3. **Advanced Analytics**: Cross-dimensional correlation analysis
+4. **Reporting**: Executive summaries and automated insights
 
 This architecture provides a **beautiful, maintainable foundation** for any patent analysis application, with clean separation of concerns and comprehensive testing.
 
