@@ -41,6 +41,9 @@ claude mcp add --transport sse linear-server https://mcp.linear.app/sse   # /mcp
 
 *Collaborative AI partner providing code generation, error handling, visualization enhancement, and comprehensive documentation.*
 
+Screencast of Trial Run at 2025-06-26 20:57
+https://screen.studio/share/b0Ujsixw 
+
 ---
 
 ## 📁 Repository Structure
