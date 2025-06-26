@@ -33,6 +33,12 @@ https://piznet.de
 **Claude Code (Anthropic)**  
 Advanced AI assistant specializing in code enhancement, data visualization, and patent analytics augmentation.
 
+```
+npm install -g @anthropic-ai/claude-code
+claude mcp add --transport sse context7 https://mcp.context7.com/sse      # to use type: use context7
+claude mcp add --transport sse linear-server https://mcp.linear.app/sse   # /mcp to authenticate
+```
+
 *Collaborative AI partner providing code generation, error handling, visualization enhancement, and comprehensive documentation.*
 
 ---

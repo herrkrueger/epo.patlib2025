@@ -1,0 +1,320 @@
+# Patent Search Configuration for Analysis Platform
+# Enhanced from EPO PATLIB 2025 Live Demo Code
+
+# Global Search Settings (centralized limits and defaults)
+global_settings:
+  # Result limits (centralized - no per-query limits)
+  max_results:
+    default: 1000
+    comprehensive: 5000
+    focused: 500
+    validation: 100
+  
+  # Default date ranges
+  date_ranges:
+    default_start: "2010-01-01"
+    default_end: "2024-12-31"
+  
+  # Quality thresholds
+  quality_thresholds:
+    high_precision: 0.9      # Keywords + Classifications match
+    medium_precision: 0.8    # Keywords only match  
+    low_precision: 0.7       # Classifications only match
+
+# Simple Keywords (easy to add/change)
+# IMPORTANT: Keywords are USER-PROVIDED - users fill these categories with specific terms
+# System searches ALL THREE stages and tracks which combinations get hits in PATSTAT/OPS
+keywords:
+  # Primary technology terms
+  primary: 
+    #- "technology"
+    #- "innovation" 
+    #- "method"
+    #- "process"
+    #- "system"
+    - "rare earth"
+    - "lanthanide"
+    - "neodymium"
+    - "dysprosium"
+    - "terbium"
+  
+  # Secondary terms
+  secondary:
+    #- "development"
+    #- "manufacturing"
+    #- "processing"
+    #- "production"
+    #- "application"
+    - "extraction"
+    - "separation"
+    - "purification"
+    - "recovery"
+    - "recycling"
+  
+  # Specific focus areas (customize as needed)
+  focus:
+    #- "advanced"
+    #- "novel"
+    #- "improved"
+    #- "efficient"
+    #- "sustainable"
+    - "magnet"
+    - "phosphor"
+    - "catalyst"
+    - "battery"
+    - "ceramic"
+  
+  # For EPO OPS validation
+  validation:
+    - "technology"
+    - "innovation"
+    - "method"
+    - "process"
+    - "development"
+
+# CPC Classifications (only CPC, no IPC)
+# IMPORTANT: User selects technology area symbols - system searches ALL codes for that area
+# System tracks which CPC classes/technology areas yield hits in PATSTAT/OPS for optimization
+cpc_classifications:
+  # Technology areas with CPC codes
+  technology_areas:
+    semiconductor:
+      codes: ["H01L21/00", "H01L29/00", "H01L23/00"]
+      description: "Semiconductor devices and manufacturing"
+    
+    computing:
+      codes: ["G06F15/00", "G06F17/00", "G06N3/00"] 
+      description: "Computing systems and AI"
+    
+    telecommunications:
+      codes: ["H04L29/00", "H04B7/00", "H04W4/00"]
+      description: "Telecommunications and networks"
+    
+    energy_storage:
+      codes: ["H01M10/00", "H01M4/00", "H02J7/00"]
+      description: "Batteries and energy storage"
+    
+    materials:
+      codes: ["C01B32/00", "C08F2/00", "B82Y30/00"]
+      description: "Advanced materials and nanotechnology"
+    
+    manufacturing:
+      codes: ["B29C64/00", "B33Y10/00", "B23K26/00"]
+      description: "Manufacturing processes and 3D printing"
+    
+    rare_earth_elements:
+      codes: [
+        # REE Extraction & Processing (exact format from working notebook)
+        "C22B  19/28", "C22B  19/30", "C22B  25/06",
+        
+        # REE Ceramics & Advanced Materials  
+        "C04B   7/24", "C04B   7/26", "C04B   7/28", "C04B   7/30",
+        "C04B  11/26", "C04B  18/04", "C04B  18/06", "C04B  18/08", "C04B  33/132",
+        "C03B   1/02",
+        
+        # REE in Energy Storage (Batteries) - exact format from working notebook
+        "H01M   6/52", "H01M  10/54",
+        
+        # REE Phosphors & Display Technology
+        "C09K  11/01", "H01J   9/52",
+        
+        # REE in Electrical Applications
+        "H01B  15/00", "C10M 175/00",
+        
+        # Recovery & Recycling Technologies (CPC Y-codes) - exact format from working notebook
+        "Y02W30/52", "Y02W30/56", "Y02W30/58", "Y02W30/60",
+        "Y02W30/62", "Y02W30/64", "Y02W30/66", "Y02W30/74",
+        "Y02W30/78", "Y02W30/80", "Y02W30/82", "Y02W30/84",
+        "Y02W30/91", "Y02P10/20",
+        
+        # Manufacturing & Processing
+        "B22F   8/00", "B29B   7/66", "B29B  17/00", "B30B   9/32", "C08J  11/00",
+        "D01G  11/00", "D21B   1/08", "D21B   1/10", "D21B   1/32", "D21C   5/02", "D21H  17/01",
+        
+        # Specialized Applications
+        "A43B   1/12", "B03B   9/06", "B62D  67/00", "B65H  73/00", "B65D  65/46"
+      ]
+      description: "Rare Earth Elements - extraction, applications, and recycling"
+
+# Search Strategies (simplified)
+search_strategies:
+  focused_mode:
+    description: "High precision search with core terms"
+    keywords: ["primary", "focus"]  # References keyword sections above
+    quality_threshold: "high_precision"
+    max_results: "focused"
+  
+  comprehensive_mode:
+    description: "Broad search across all terms"
+    keywords: ["primary", "secondary", "focus"]
+    quality_threshold: "medium_precision" 
+    max_results: "comprehensive"
+  
+  validation_mode:
+    description: "Cross-validation with EPO OPS"
+    keywords: ["validation"]
+    quality_threshold: "high_precision"
+    max_results: "validation"
+
+# Query Templates
+search_patterns:
+  # PATSTAT Query Templates (use CPC only)
+  patstat_patterns:
+    abstract_search:
+      template: |
+        SELECT DISTINCT a.docdb_family_id, a.earliest_filing_year,
+               a.docdb_family_size, 'Abstract Search' as search_method,
+               {quality_score} as quality_score
+        FROM `{project}.{dataset}.TLS201_APPLN` a
+        JOIN `{project}.{dataset}.TLS203_APPLN_ABSTR` ab ON a.appln_id = ab.appln_id
+        WHERE a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+          AND ({keyword_conditions})
+        LIMIT {max_results}
+      description: "Search in patent abstracts"
+    
+    title_search:
+      template: |
+        SELECT DISTINCT a.docdb_family_id, a.earliest_filing_year,
+               a.docdb_family_size, 'Title Search' as search_method,
+               {quality_score} as quality_score
+        FROM `{project}.{dataset}.TLS201_APPLN` a
+        JOIN `{project}.{dataset}.TLS202_APPLN_TITLE` t ON a.appln_id = t.appln_id
+        WHERE a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+          AND ({keyword_conditions})
+        LIMIT {max_results}
+      description: "Search in patent titles"
+    
+    cpc_search:
+      template: |
+        SELECT DISTINCT a.docdb_family_id, a.earliest_filing_year,
+               a.docdb_family_size, 'CPC Search' as search_method,
+               {quality_score} as quality_score
+        FROM `{project}.{dataset}.TLS201_APPLN` a
+        JOIN `{project}.{dataset}.TLS224_APPLN_CPC` cpc ON a.appln_id = cpc.appln_id
+        WHERE a.earliest_filing_year BETWEEN {start_year} AND {end_year}
+          AND ({cpc_conditions})
+        LIMIT {max_results}
+      description: "Search using CPC classification codes"
+  
+  # EPO OPS Query Templates (reuse CPC codes from above)
+  epo_ops_patterns:
+    keyword_basic:
+      template: '(txt=("{primary_keywords}")) AND (txt=("{secondary_keywords}"))'
+      description: "Basic keyword search"
+    
+    keyword_advanced:
+      template: '(ctxt=("{keyword1}" prox/distance<3 "{keyword2}") OR ctxt any "{focus_keywords}") AND (ctxt any "{additional_keywords}")'
+      description: "Advanced search with proximity operators"
+    
+    cpc_search:
+      template: 'cpc=({cpc_codes})'
+      description: "CPC classification search (uses codes from cpc_classifications above)"
+    
+    application_search:
+      template: 'pn=("{application_numbers}")'
+      description: "Search by application numbers"
+    
+    combined_search:
+      template: '(txt=("{keywords}")) AND cpc=({cpc_codes})'
+      description: "Combined keyword and CPC search"
+
+# Citation Analysis Configuration
+citation_analysis:
+  # Family-level citation templates (proven working patterns)
+  family_citations:
+    forward_citations:
+      template: |
+        SELECT cited_docdb_family_id as cited_family_id,
+               docdb_family_id as citing_family_id
+        FROM TLS228_DOCDB_FAM_CITN 
+        WHERE cited_docdb_family_id IN ({family_ids})
+      description: "Forward citations - who cites our patents"
+      table: "TLS228_DOCDB_FAM_CITN"
+    
+    backward_citations:
+      template: |
+        SELECT docdb_family_id as citing_family_id,
+               cited_docdb_family_id as cited_family_id
+        FROM TLS228_DOCDB_FAM_CITN
+        WHERE docdb_family_id IN ({family_ids})
+      description: "Backward citations - what our patents cite"
+      table: "TLS228_DOCDB_FAM_CITN"
+    
+    citation_enrichment:
+      template: |
+        SELECT t1.docdb_family_id,
+               t1.earliest_filing_year,
+               t1.earliest_publn_year,
+               t2.appln_title,
+               t3.appln_abstract
+        FROM TLS201_APPLN t1
+        LEFT JOIN TLS202_APPLN_TITLE t2 ON t1.appln_id = t2.appln_id
+        LEFT JOIN TLS203_APPLN_ABSTR t3 ON t1.appln_id = t3.appln_id
+        WHERE t1.docdb_family_id IN ({family_ids})
+      description: "Enrich citation data with patent metadata"
+      tables: ["TLS201_APPLN", "TLS202_APPLN_TITLE", "TLS203_APPLN_ABSTR"]
+  
+  # Application-level citation templates
+  application_citations:
+    detailed_citations:
+      template: |
+        SELECT citing_pat_publn_id,
+               cited_pat_publn_id,
+               citn_origin,
+               citn_id
+        FROM TLS212_CITATION
+        WHERE cited_pat_publn_id IN ({publication_ids})
+      description: "Detailed application-level citations"
+      table: "TLS212_CITATION"
+    
+    citation_categories:
+      template: |
+        SELECT c.citn_id,
+               cc.citn_categ,
+               cc.citn_categ_sm
+        FROM TLS212_CITATION c
+        JOIN TLS215_CITN_CATEG cc ON c.citn_id = cc.citn_id
+        WHERE c.cited_pat_publn_id IN ({publication_ids})
+      description: "Citation quality categories"
+      tables: ["TLS212_CITATION", "TLS215_CITN_CATEG"]
+  
+  # Citation quality thresholds
+  quality_metrics:
+    impact_levels:
+      high_impact: 5      # Patents cited 5+ times
+      medium_impact: 2    # Patents cited 2-4 times
+      low_impact: 1       # Patents cited once
+    
+    referencing_levels:
+      highly_referencing: 10  # Patents citing 10+ prior art
+      medium_referencing: 5   # Patents citing 5-9 prior art
+      low_referencing: 1      # Patents citing 1-4 prior art
+    
+    network_density:
+      high_density: 10    # Citations per family
+      medium_density: 5   # Citations per family
+      low_density: 1      # Citations per family
+
+# Market Data Integration (simplified)
+market_data_integration:
+  # Market events timeline (generic)
+  market_events:
+    timeline:
+      2010: "Technology disruption period"
+      2015: "Digital transformation era"
+      2020: "Pandemic-driven innovation"
+      2023: "AI breakthrough period"
+  
+  # Data sources (keep structure but make generic)
+  data_sources:
+    government_data:
+      description: "Government technology and innovation statistics"
+      update_frequency: "annual"
+    
+    market_data:
+      description: "Technology market and pricing data"  
+      update_frequency: "monthly"
+    
+    industry_reports:
+      description: "Industry analysis and trend reports"
+      update_frequency: "quarterly"

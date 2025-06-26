@@ -1,0 +1,155 @@
+# Geographic Configuration for Patent Analysis
+# Enhanced from EPO PATLIB 2025 Live Demo Code
+
+# Strategic Regional Groupings for Patent Analysis
+regional_groups:
+  # Major Patent Office Groups
+  ip5_offices:
+    name: "IP5 Patent Offices"
+    description: "Five largest patent offices globally"
+    members: ["US", "EP", "JP", "KR", "CN"]
+    
+  ip4_offices:
+    name: "IP4 Patent Offices" 
+    description: "IP5 excluding China"
+    members: ["US", "EP", "JP", "KR"]
+    
+  # Economic Groupings
+  major_economies:
+    name: "Major Patent Economies"
+    description: "Countries with significant patent activity"
+    members: ["US", "CN", "JP", "DE", "GB", "FR", "IT", "CA", "AU", "NL", "SE", "CH"]
+    
+  emerging_markets:
+    name: "Emerging Patent Markets"
+    description: "Growing patent jurisdictions"
+    members: ["BR", "IN", "RU", "MX", "ZA", "TH", "MY", "SG", "TW"]
+    
+  # Regional Organizations
+  epo_members:
+    name: "EPO Member States"
+    description: "European Patent Office member countries"
+    members: ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", 
+              "FR", "GB", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", 
+              "LV", "MC", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", 
+              "SK", "SM", "TR"]
+              
+  eu_members:
+    name: "European Union Members"
+    description: "EU member states for patent strategy analysis"
+    members: ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", 
+              "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", 
+              "RO", "SK", "SI", "ES", "SE"]
+              
+  oecd_members:
+    name: "OECD Countries"
+    description: "Organisation for Economic Co-operation and Development"
+    members: ["AU", "AT", "BE", "CA", "CL", "CZ", "DK", "EE", "FI", "FR", "DE", 
+              "GR", "HU", "IS", "IE", "IL", "IT", "JP", "KR", "LV", "LT", "LU", 
+              "MX", "NL", "NZ", "NO", "PL", "PT", "SK", "SI", "ES", "SE", "CH", 
+              "TR", "GB", "US"]
+
+# Continent Groupings for Analysis
+continent_groups:
+  north_america:
+    name: "North America"
+    members: ["US", "CA", "MX"]
+    
+  europe:
+    name: "Europe"
+    members: ["AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", 
+              "FR", "GB", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", 
+              "LV", "MC", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", 
+              "SK", "SM", "TR"]
+              
+  asia_pacific:
+    name: "Asia Pacific"
+    members: ["JP", "KR", "CN", "AU", "SG", "TH", "MY", "TW", "IN", "NZ"]
+    
+  americas:
+    name: "Americas"
+    members: ["US", "CA", "MX", "BR", "AR", "CL", "CO", "PE"]
+
+# Patent Filing Strategy Classifications
+filing_strategies:
+  domestic_focused:
+    name: "Domestic Focused"
+    description: "Primarily domestic patent protection"
+    family_size_range: [1, 2]
+    
+  regional_strategy:
+    name: "Regional Strategy" 
+    description: "Regional patent protection approach"
+    family_size_range: [3, 5]
+    
+  global_strategy:
+    name: "Global Strategy"
+    description: "Comprehensive global protection"
+    family_size_range: [6, 10]
+    
+  premium_global:
+    name: "Premium Global"
+    description: "Extensive worldwide coverage"
+    family_size_range: [11, 999]
+
+# Economic Development Classifications
+economic_classifications:
+  developed:
+    name: "Developed Economies"
+    members: ["US", "CA", "JP", "AU", "NZ", "KR", "SG", "HK", "TW", "IS", "NO", 
+              "CH", "LI", "AT", "BE", "DK", "FI", "FR", "DE", "IE", "IT", "LU", 
+              "NL", "ES", "SE", "GB", "GR", "PT", "CY", "CZ", "EE", "LV", "LT", 
+              "MT", "SK", "SI", "IL"]
+              
+  emerging:
+    name: "Emerging Markets"
+    members: ["CN", "BR", "IN", "RU", "MX", "ZA", "TH", "MY", "TR", "PL", "HU", 
+              "CL", "AR", "CO", "PE", "RO", "BG", "HR"]
+              
+  developing:
+    name: "Developing Countries"
+    description: "Other countries not in developed or emerging categories"
+
+# PATSTAT Country Table Integration
+patstat_integration:
+  table_name: "TLS801_COUNTRY"
+  key_fields:
+    country_code: "CTRY_CODE"
+    country_name: "ST3_NAME" 
+    continent: "CONTINENT"
+    eu_member: "EU_MEMBER"
+    epo_member: "EPO_MEMBER"
+    oecd_member: "OECD_MEMBER"
+    
+  query_template: |
+    SELECT 
+        CTRY_CODE as country_code,
+        ST3_NAME as country_name,
+        CONTINENT as continent,
+        EU_MEMBER as is_eu_member,
+        EPO_MEMBER as is_epo_member, 
+        OECD_MEMBER as is_oecd_member
+    FROM TLS801_COUNTRY
+    WHERE CTRY_CODE IS NOT NULL
+    ORDER BY CTRY_CODE
+
+# Default Unknown/Missing Value Handling
+unknown_values:
+  country_code: "XX"
+  country_name: "Unknown"
+  continent: "Unknown"
+  region: "Other"
+  
+# Visualization Settings
+visualization:
+  default_colors:
+    north_america: "#1f77b4"
+    europe: "#ff7f0e" 
+    asia_pacific: "#2ca02c"
+    americas: "#d62728"
+    other: "#9467bd"
+    
+  choropleth_settings:
+    color_scale: "viridis"
+    missing_color: "#f0f0f0"
+    projection: "natural earth"

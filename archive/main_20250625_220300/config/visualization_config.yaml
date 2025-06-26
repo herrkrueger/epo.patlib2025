@@ -1,0 +1,553 @@
+# Visualization Configuration for Patent Analysis Platform
+# Enhanced from EPO PATLIB 2025 Live Demo Code
+
+# General Visualization Settings
+general:
+  # Default Themes and Styling
+  themes:
+    default_theme: "patent_intelligence"
+    available_themes:
+      - "corporate"
+      - "patent_intelligence" 
+      - "scientific"
+      - "minimal"
+      - "colorful"
+  
+  # Output Configuration
+  output:
+    default_format: "html"
+    supported_formats: ["html", "png", "pdf", "svg", "json"]
+    image_resolution: 300  # DPI for image exports
+    image_width: 1200
+    image_height: 800
+    include_plotlyjs: "cdn"  # Options: cdn, inline, directory
+  
+  # Professional Branding
+  branding:
+    title_prefix: "🎯 "
+    subtitle_format: "EPO PATLIB 2025 - Enhanced with Claude Code"
+    watermark: "Generated with Claude Code AI"
+    footer_text: "Patent Intelligence Platform"
+    logo_path: null  # Path to organization logo
+
+# Chart Styling Configuration
+charts:
+  # Default Layout Settings
+  layout:
+    # Dimensions
+    default_width: 800
+    default_height: 600
+    dashboard_width: 1200
+    dashboard_height: 900
+    
+    # Margins
+    margin_left: 80
+    margin_right: 80
+    margin_top: 100
+    margin_bottom: 80
+    
+    # Background Colors
+    plot_bgcolor: "white"
+    paper_bgcolor: "#f8f9fa"
+    
+    # Typography
+    font_family: "Arial, sans-serif"
+    font_size: 12
+    title_font_size: 18
+    title_font_family: "Arial Black"
+    axis_title_font_size: 14
+    legend_font_size: 11
+  
+  # Color Schemes
+  color_schemes:
+    # Primary Patent Analysis Colors
+    patent_analysis:
+      - "#1f77b4"  # Blue
+      - "#ff7f0e"  # Orange  
+      - "#2ca02c"  # Green
+      - "#d62728"  # Red
+      - "#9467bd"  # Purple
+      - "#8c564b"  # Brown
+      - "#e377c2"  # Pink
+      - "#7f7f7f"  # Gray
+      - "#bcbd22"  # Olive
+      - "#17becf"  # Cyan
+    
+    # Professional Qualitative
+    qualitative_professional:
+      - "#2E8B57"  # Sea Green
+      - "#4169E1"  # Royal Blue
+      - "#FF6347"  # Tomato
+      - "#32CD32"  # Lime Green
+      - "#FF69B4"  # Hot Pink
+      - "#8A2BE2"  # Blue Violet
+      - "#00CED1"  # Dark Turquoise
+      - "#FF4500"  # Orange Red
+    
+    # Sequential Schemes for Heatmaps
+    sequential:
+      patent_activity: "Blues"
+      market_share: "Reds" 
+      innovation_intensity: "Viridis"
+      growth_rate: "Plasma"
+      time_evolution: "Cividis"
+      technology_intensity: "Viridis"
+    
+    # Diverging Schemes for Correlations
+    diverging:
+      correlation: "RdBu_r"
+      growth_decline: "RdYlGn"
+      performance: "Spectral_r"
+  
+  # Chart-Specific Configurations
+  scatter_plots:
+    # Bubble Scatter Settings
+    bubble_scatter:
+      size_reference_factor: 2.0
+      max_bubble_size: 50
+      min_bubble_size: 8
+      opacity: 0.7
+      line_width: 2
+      line_color: "rgba(255,255,255,0.8)"
+      text_position: "middle right"
+      text_font_size: 10
+      hover_border_color: "white"
+    
+    # Regular Scatter Settings
+    regular_scatter:
+      marker_size: 8
+      marker_opacity: 0.8
+      line_width: 3
+      show_trend_line: true
+      trend_line_dash: "dash"
+      trend_line_color: "red"
+      trend_line_width: 2
+  
+  bar_charts:
+    # Horizontal Bar Charts (Rankings)
+    horizontal_bars:
+      orientation: "h"
+      text_position: "outside"
+      text_template: "%{x}"
+      bar_opacity: 0.8
+      border_width: 1
+      border_color: "white"
+      show_values: true
+    
+    # Vertical Bar Charts
+    vertical_bars:
+      text_position: "outside"
+      text_template: "%{y}" 
+      bar_gap: 0.2
+      bar_group_gap: 0.1
+      show_grid: true
+      grid_color: "lightgray"
+  
+  pie_charts:
+    # Market Share Pies
+    market_share:
+      hole_size: 0.3  # Donut style
+      text_info: "label+percent"
+      text_position: "auto"
+      pull_largest: 0.1  # Pull out largest slice
+      show_legend: true
+      legend_position: "right"
+      max_categories: 10
+      others_threshold: 1.0  # Combine categories < 1%
+    
+    # Distribution Pies
+    distribution:
+      hole_size: 0.2
+      text_info: "label+value"
+      show_percentages: true
+      sort_slices: true
+  
+  time_series:
+    # Line Charts
+    line_charts:
+      line_width: 3
+      marker_size: 8
+      mode: "lines+markers"
+      smooth_lines: false
+      show_trend: true
+      confidence_intervals: false
+    
+    # Multi-series Time Charts
+    multi_series:
+      max_series: 8
+      line_width: 2
+      marker_size: 6
+      opacity: 0.8
+      legend_position: "bottom"
+  
+  heatmaps:
+    # Correlation Heatmaps
+    correlation:
+      color_scale: "RdBu_r"
+      color_midpoint: 0
+      show_annotations: true
+      annotation_font_size: 10
+      grid_color: "white"
+      grid_width: 2
+    
+    # Activity Heatmaps
+    activity:
+      color_scale: "Viridis"
+      show_scale_bar: true
+      scale_bar_thickness: 15
+      scale_bar_length: 0.7
+
+# Geographic Visualization Configuration
+maps:
+  # Choropleth Maps
+  choropleth:
+    # Default Settings
+    projection: "natural earth"
+    color_scale: "Blues"
+    show_frame: false
+    show_coastlines: true
+    coastline_color: "gray"
+    
+    # Geographic Features
+    show_land: true
+    land_color: "lightgray"
+    show_ocean: true
+    ocean_color: "lightblue"
+    show_lakes: true
+    lake_color: "lightblue"
+    show_rivers: false
+    
+    # Color Bar
+    color_bar_thickness: 15
+    color_bar_length: 0.7
+    color_bar_position: "right"
+  
+  # Strategic Positioning Maps
+  strategic_maps:
+    # Bubble Overlays
+    bubble_size_ref: 2.0
+    max_bubble_size: 30
+    min_bubble_size: 8
+    bubble_opacity: 0.7
+    bubble_line_width: 2
+    bubble_line_color: "white"
+    
+    # Quadrant Analysis
+    quadrant_colors:
+      leaders: "#2E8B57"      # Sea Green
+      challengers: "#FF6347"  # Tomato
+      innovators: "#4169E1"   # Royal Blue
+      followers: "#DAA520"    # Golden Rod
+  
+  # Country Coordinates (for bubble maps)
+  country_coordinates:
+    China: {lat: 35.0, lon: 105.0}
+    "United States": {lat: 40.0, lon: -100.0}
+    Japan: {lat: 36.0, lon: 138.0}
+    Germany: {lat: 51.0, lon: 9.0}
+    "South Korea": {lat: 36.0, lon: 128.0}
+    France: {lat: 46.0, lon: 2.0}
+    "United Kingdom": {lat: 54.0, lon: -2.0}
+    Canada: {lat: 60.0, lon: -95.0}
+    Australia: {lat: -25.0, lon: 135.0}
+    Italy: {lat: 42.0, lon: 12.0}
+    Spain: {lat: 40.0, lon: -4.0}
+    Netherlands: {lat: 52.0, lon: 5.0}
+    Sweden: {lat: 60.0, lon: 18.0}
+    Switzerland: {lat: 47.0, lon: 8.0}
+    India: {lat: 20.0, lon: 77.0}
+    Brazil: {lat: -14.0, lon: -51.0}
+    Russia: {lat: 60.0, lon: 100.0}
+    Singapore: {lat: 1.0, lon: 104.0}
+    Taiwan: {lat: 24.0, lon: 121.0}
+
+# Dashboard Configuration
+dashboards:
+  # Layout Templates
+  layouts:
+    executive_summary:
+      rows: 2
+      cols: 2
+      height: 800
+      panel_titles:
+        - "Market Leaders"
+        - "Market Share Distribution"
+        - "Geographic Distribution" 
+        - "Activity Timeline"
+      horizontal_spacing: 0.1
+      vertical_spacing: 0.15
+    
+    technology_intelligence:
+      rows: 2
+      cols: 3
+      height: 900
+      panel_titles:
+        - "Technology Network"
+        - "Domain Distribution"
+        - "Innovation Metrics"
+        - "Technology Evolution"
+        - ""  # Spanning panel
+        - "Emergence Patterns"
+      horizontal_spacing: 0.08
+      vertical_spacing: 0.15
+    
+    competitive_landscape:
+      rows: 3
+      cols: 2
+      height: 1000
+      panel_titles:
+        - "Global Patent Landscape"
+        - ""  # Spanning panel
+        - "Market Leaders"
+        - "Regional Distribution"
+        - "Competitive Tiers"
+        - "Strategic Positioning"
+      horizontal_spacing: 0.1
+      vertical_spacing: 0.12
+    
+    trends_analysis:
+      rows: 2
+      cols: 3
+      height: 800
+      panel_titles:
+        - "Filing Trends"
+        - "Technology Growth"
+        - "Lifecycle Distribution"
+        - "Market Events & Correlation Analysis"
+        - ""  # Spanning panel
+        - ""  # Spanning panel
+      horizontal_spacing: 0.08
+      vertical_spacing: 0.15
+  
+  # Panel Configuration
+  panels:
+    # Market Leaders Panel
+    market_leaders:
+      chart_type: "bubble_scatter"
+      x_axis: "Patent_Families"
+      y_axis: "Market_Share_Pct"
+      size_metric: "Patent_Families"
+      color_metric: "Market_Share_Pct"
+      max_points: 20
+      show_text_labels: true
+    
+    # Geographic Panel
+    geographic:
+      chart_type: "choropleth"
+      value_metric: "unique_families"
+      color_scheme: "Blues"
+      hover_data: ["country_name", "market_share"]
+    
+    # Technology Network Panel
+    technology_network:
+      chart_type: "network"
+      layout_algorithm: "spring"
+      node_size_metric: "degree"
+      node_color_metric: "domain"
+      edge_width_metric: "weight"
+      min_edge_weight: 0.1
+      show_labels: true
+    
+    # Time Series Panel  
+    time_series:
+      chart_type: "line"
+      x_axis: "filing_year"
+      y_axis: "patent_count"
+      show_trend_line: true
+      show_market_events: true
+      event_annotations: true
+
+# Network Visualization Configuration  
+networks:
+  # Layout Algorithms
+  layouts:
+    spring:
+      k: 3  # Optimal distance between nodes
+      iterations: 50
+      seed: 42
+      repulsion_factor: 1.0
+    
+    circular:
+      radius: 1.0
+      center: [0, 0]
+    
+    force_directed:
+      attraction_strength: 0.1
+      repulsion_strength: 0.1
+      damping: 0.9
+  
+  # Node Styling
+  nodes:
+    # Size Configuration
+    min_size: 8
+    max_size: 30
+    size_scaling: "degree"  # Options: degree, centrality, custom
+    
+    # Color Configuration
+    color_by: "domain"  # Options: domain, centrality, cluster, custom
+    opacity: 0.8
+    border_width: 2
+    border_color: "white"
+    
+    # Text Labels
+    show_labels: true
+    label_font_size: 8
+    label_color: "white"
+    label_position: "middle center"
+  
+  # Edge Styling  
+  edges:
+    # Line Configuration
+    width_scaling: "weight"
+    min_width: 1
+    max_width: 5
+    opacity: 0.6
+    color: "rgba(128,128,128,0.5)"
+    
+    # Filtering
+    show_weak_connections: false
+    min_weight_threshold: 0.1
+    max_edges_displayed: 200
+
+# Export Configuration
+export:
+  # File Naming
+  file_naming:
+    prefix: "ree_patent"
+    include_timestamp: true
+    timestamp_format: "%Y%m%d_%H%M%S"
+    separator: "_"
+  
+  # Format-Specific Settings
+  html_export:
+    include_plotlyjs: "cdn"
+    config:
+      displayModeBar: true
+      displaylogo: false
+      modeBarButtonsToRemove: ["pan2d", "lasso2d"]
+      responsive: true
+  
+  png_export:
+    width: 1200
+    height: 800
+    scale: 2  # For high resolution
+    engine: "auto"  # Options: auto, kaleido, orca
+  
+  pdf_export:
+    width: 1200
+    height: 800
+    format: "pdf"
+    engine: "auto"
+  
+  # Multi-Format Export
+  batch_export:
+    enabled: true
+    formats: ["html", "png"]
+    create_summary_index: true
+    include_metadata: true
+
+# Interactive Features
+interactivity:
+  # Hover Configuration
+  hover:
+    enabled: true
+    delay: 100  # milliseconds
+    border_color: "white"
+    border_width: 2
+    background_color: "rgba(255,255,255,0.8)"
+    font_size: 12
+  
+  # Zoom and Pan
+  zoom:
+    enabled: true
+    double_click_zoom: true
+    wheel_zoom: true
+    box_zoom: true
+    pan: true
+  
+  # Selection
+  selection:
+    enabled: true
+    multi_select: true
+    persistent_selection: false
+  
+  # Animation
+  animation:
+    enabled: true
+    duration: 500  # milliseconds
+    easing: "cubic-in-out"
+  
+  # Crossfilter (for dashboards)
+  crossfilter:
+    enabled: false  # Requires additional implementation
+    linked_brushing: false
+    coordinated_views: false
+
+# Performance Configuration
+performance:
+  # Rendering Optimization
+  rendering:
+    max_points_scatter: 10000
+    max_points_line: 5000
+    max_network_nodes: 500
+    use_webgl: false  # Set to true for large datasets
+    
+    # Data Decimation
+    auto_decimate: true
+    decimation_threshold: 1000
+    decimation_algorithm: "lttb"  # Largest Triangle Three Buckets
+  
+  # Memory Management
+  memory:
+    max_cache_size_mb: 100
+    cleanup_on_export: true
+    garbage_collection: true
+  
+  # Loading
+  loading:
+    show_loading_spinner: true
+    loading_message: "Generating visualization..."
+    timeout_seconds: 30
+
+# Accessibility Configuration
+accessibility:
+  # Color Accessibility
+  color_accessibility:
+    colorblind_friendly: true
+    high_contrast_mode: false
+    alternative_patterns: true  # Use patterns in addition to colors
+  
+  # Text Accessibility
+  text:
+    min_font_size: 10
+    high_contrast_text: false
+    screen_reader_support: true
+    alt_text_generation: true
+  
+  # Navigation
+  keyboard_navigation: true
+  focus_indicators: true
+  skip_links: false
+
+# Quality Assurance
+quality_assurance:
+  # Validation
+  validation:
+    check_data_quality: true
+    min_data_points: 5
+    max_data_points: 100000
+    validate_color_schemes: true
+    check_axis_ranges: true
+  
+  # Testing
+  testing:
+    enable_visual_regression: false
+    screenshot_comparison: false
+    performance_benchmarks: false
+  
+  # Error Handling
+  error_handling:
+    graceful_degradation: true
+    fallback_charts: true
+    error_visualization: true
+    debug_mode: false

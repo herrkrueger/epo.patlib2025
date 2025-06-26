@@ -1,0 +1,1 @@
+(((ctxt=("rare " prox/distance<3 "earth") AND ctxt=("earth" prox/distance<3 "element")) OR ctxt= ("rare " prox/distance‹ "metal") OR ctxt=("rare " prox/distance<3 "oxide") OR ctxt=("light " pro x/distance<3 "REE") OR ctxt=("heavy " prox/distance<3 "REE"))

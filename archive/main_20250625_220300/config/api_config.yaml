@@ -1,0 +1,165 @@
+# API Configuration for Patent Analysis Platform
+# Enhanced from EPO PATLIB 2025 Live Demo Code
+
+# EPO Open Patent Services (OPS) API Configuration
+epo_ops:
+  # API Authentication
+  authentication:
+    consumer_key: "${ENV:OPS_KEY}"  # Environment variable reference
+    consumer_secret: "${ENV:OPS_SECRET}"  # Environment variable reference
+    auth_url: "https://ops.epo.org/3.2/auth/accesstoken"
+    grant_type: "client_credentials"
+  
+  # API Endpoints
+  endpoints:
+    base_url: "https://ops.epo.org/3.2/rest-services"
+    search: "published-data/search"
+    patent_details: "published-data/{reference_type}/{patent_number}/{sections}"
+    patent_family: "published-data/{reference_type}/{patent_number}/family"
+    citations: "published-data/{reference_type}/{patent_number}/citations/{citation_type}"
+    legal_data: "published-data/{reference_type}/{patent_number}/legal"
+  
+  # Rate Limiting
+  rate_limiting:
+    requests_per_minute: 60
+    requests_per_hour: 3600
+    requests_per_day: 50000
+    min_request_interval: 1.0  # seconds
+    retry_delay: 60  # seconds on rate limit
+    max_retries: 3
+  
+  # Request Configuration
+  request_config:
+    timeout: 30  # seconds
+    max_results_per_request: 100
+    default_sections: ["biblio", "abstract"]
+    supported_formats: ["json", "xml"]
+    default_format: "json"
+  
+
+# PATSTAT Database API Configuration
+patstat:
+  # Connection Settings
+  connection:
+    environment: "PROD"  # PROD for full dataset, TEST for limited access
+    # Database credentials are handled by epo.tipdata.patstat library
+    timeout: 300  # seconds for long-running queries
+    pool_size: 5
+    max_overflow: 10
+  
+  # Query Configuration
+  query_config:
+    default_limit: 10000
+    max_limit: 100000
+    batch_size: 1000
+    use_distinct: true
+    enable_caching: true
+  
+  # Table Mappings
+  tables:
+    applications: "TLS201_APPLN"
+    titles: "TLS202_APPLN_TITLE"
+    abstracts: "TLS203_APPLN_ABSTR"
+    ipc_classifications: "TLS209_APPLN_IPC"
+    cpc_classifications: "TLS224_APPLN_CPC"
+    citations: "TLS212_CITATION"
+    persons: "TLS206_PERSON"
+    person_applications: "TLS207_PERS_APPLN"
+
+
+# Authentication and Security
+authentication:
+  # API Key Management
+  key_rotation:
+    enabled: true
+    rotation_interval: "90_days"
+    notification_before: "7_days"
+  
+  # Security Settings
+  security:
+    encrypt_stored_keys: true
+    use_environment_variables: true
+    log_api_calls: false  # Set to false for security
+    rate_limit_enforcement: true
+  
+  # Access Control
+  access_control:
+    allowed_ips: []  # Empty means all IPs allowed
+    require_https: true
+    api_version_pinning: true
+
+# Caching Configuration
+caching:
+  # Cache Settings
+  enabled: true
+  backend: "file"  # Options: file, redis, memory
+  default_ttl: 3600  # 1 hour
+  
+  # Cache TTL by Data Type
+  ttl_settings:
+    patent_search_results: 3600  # 1 hour
+    patent_details: 86400  # 24 hours
+    patent_families: 86400  # 24 hours
+    citations: 43200  # 12 hours
+    market_data: 3600  # 1 hour
+    analysis_results: 1800  # 30 minutes
+  
+  # Cache Storage
+  storage:
+    directory: "./cache"
+    max_size_mb: 1000
+    cleanup_on_startup: false
+    compression: true
+
+# Error Handling and Monitoring
+error_handling:
+  # Retry Configuration
+  retry_config:
+    max_retries: 3
+    backoff_factor: 2
+    retry_on_status: [429, 500, 502, 503, 504]
+    retry_delay: [1, 2, 4]  # seconds
+  
+  # Fallback Strategies
+  fallback:
+    use_cached_data: true
+    use_demo_data: true
+    partial_results_acceptable: true
+  
+  # Monitoring
+  monitoring:
+    log_api_calls: true
+    log_errors: true
+    alert_on_failures: false
+    performance_tracking: true
+
+# Development and Testing
+development:
+  # Debug Settings
+  debug:
+    enabled: false
+    log_level: "INFO"
+    verbose_errors: false
+    mock_api_calls: false
+  
+  # Testing Configuration
+  testing:
+    use_test_environment: false
+    mock_external_apis: false
+    test_data_size_limit: 100
+    enable_performance_tests: false
+
+# API Usage Tracking
+usage_tracking:
+  # Quota Management
+  quotas:
+    daily_requests: 10000
+    monthly_requests: 300000
+    cost_tracking: true
+  
+  # Analytics
+  analytics:
+    track_query_patterns: true
+    performance_metrics: true
+    usage_reports: true
+    export_usage_data: false
