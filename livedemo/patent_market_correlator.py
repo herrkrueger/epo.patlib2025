@@ -3,9 +3,9 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import json
-from scipy.stats import pearsonr, spearmanr
+from scipy.stats import pearsonr
 from usgs_market_collector import USGSMineralDataCollector
-from integrated_pipeline import run_complete_ree_analysis
+# from integrated_pipeline import run_complete_ree_analysis  # Lazy import to avoid circular dependency
 
 class PatentMarketCorrelator:
     """
@@ -437,6 +437,8 @@ class PatentMarketCorrelator:
         print("🔄 Running fresh REE patent analysis for correlation...")
         
         try:
+            # Lazy import to avoid circular dependency
+            from integrated_pipeline import run_complete_ree_analysis
             fresh_results = run_complete_ree_analysis(test_mode=True)
             if fresh_results:
                 self.ree_dataset = fresh_results['ree_dataset']

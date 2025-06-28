@@ -1,11 +1,8 @@
 import pandas as pd
-import requests
-import zipfile
 import os
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
-import time
 
 class USGSMineralDataCollector:
     """

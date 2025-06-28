@@ -3,7 +3,6 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import json
-import os
 
 # Import existing patent analytics modules
 from database_connection import test_tip_connection

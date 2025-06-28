@@ -1,6 +1,5 @@
 from epo.tipdata.patstat import PatstatClient
 import pandas as pd
-from datetime import datetime
 
 def test_tip_connection():
     """Connect to PROD environment with 2010-2023 timeframe"""

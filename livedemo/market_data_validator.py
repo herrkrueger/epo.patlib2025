@@ -3,7 +3,6 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 import json
-import os
 from usgs_market_collector import USGSMineralDataCollector
 
 class MarketDataValidator:
