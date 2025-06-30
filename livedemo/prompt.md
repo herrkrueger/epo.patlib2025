@@ -1,0 +1,1 @@
+"please be so kind to  execute everything that is outlined in your CLAUDE.md here in this directory, thank you in advance so so much for all your efforts!"
